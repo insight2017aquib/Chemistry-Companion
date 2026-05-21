@@ -9,14 +9,14 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from api.serializers import serialize_analysis_result
+from api.templating import create_templates
 from database.models import get_db
 from services import AnalysisService
 from services.history_service import HistoryService
@@ -28,7 +28,7 @@ router = APIRouter()
 analysis_service = AnalysisService()
 history_service = HistoryService()
 
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent.parent / "templates"))
+templates = create_templates(Path(__file__).parent.parent.parent / "templates")
 
 
 class MoleculeInput(BaseModel):
@@ -89,18 +89,37 @@ def _run_analysis(
 @router.post("/analyze")
 @router.post("/analyse")
 async def analyze_molecule_json(
-    request: AnalysisRequest,
+    request: Request,
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
-    """JSON analysis endpoint."""
+) -> Any:
+    """JSON or form-based analysis endpoint."""
+    content_type = request.headers.get("content-type", "").lower()
+    is_form = content_type.startswith("application/x-www-form-urlencoded") or content_type.startswith("multipart/form-data")
+
+    if is_form:
+        form = await request.form()
+        return await analyse_htmx_handler(
+            request,
+            db=db,
+            input_text=form.get("input_text", ""),
+            input_method=form.get("input_method", "smiles"),
+            name=form.get("name"),
+            include_spectra=form.get("include_spectra", "true") in ("true", "on", "1", True),
+            save_image=form.get("save_image", "false") in ("true", "on", "1", True),
+            atom_numbering=form.get("atom_numbering", "false") in ("true", "on", "1", True),
+            highlight_aromatic=form.get("highlight_aromatic", "false") in ("true", "on", "1", True),
+        )
+
     try:
+        payload = await request.json()
+        request_body = AnalysisRequest(**payload)
         raw = analysis_service.analyze_molecule(
-            smiles=request.molecule.smiles,
-            inchi=request.molecule.inchi,
-            iupac=request.molecule.iupac,
-            name=request.molecule.name,
-            include_spectra=request.include_spectra,
-            save_image=request.save_image,
+            smiles=request_body.molecule.smiles,
+            inchi=request_body.molecule.inchi,
+            iupac=request_body.molecule.iupac,
+            name=request_body.molecule.name,
+            include_spectra=request_body.include_spectra,
+            save_image=request_body.save_image,
         )
         if raw.metadata.get("error"):
             raise HTTPException(
@@ -111,9 +130,8 @@ async def analyze_molecule_json(
                 },
             )
         if raw.molecule is None:
-            # Try a best-effort resolution for more helpful feedback
             input_text = (
-                request.molecule.smiles or request.molecule.inchi or request.molecule.iupac or request.molecule.name or ""
+                request_body.molecule.smiles or request_body.molecule.inchi or request_body.molecule.iupac or request_body.molecule.name or ""
             )
             resol = resolve_molecule_input(input_text) if input_text else None
             raise HTTPException(
@@ -123,7 +141,7 @@ async def analyze_molecule_json(
                     "resolution": getattr(resol, "__dict__", None),
                 },
             )
-        if request.save_history:
+        if request_body.save_history:
             history_service.save_analysis(db, raw)
         return serialize_analysis_result(raw)
     except HTTPException:
@@ -182,6 +200,7 @@ async def analyse_htmx_handler(
         )
         if raw.metadata.get("error"):
             return templates.TemplateResponse(
+                request,
                 "components/error_banner.html",
                 {
                     "request": request,
@@ -192,6 +211,7 @@ async def analyse_htmx_handler(
             )
         if raw.molecule is None:
             return templates.TemplateResponse(
+                request,
                 "components/error_banner.html",
                 {"request": request, "message": "Could not parse molecule input"},
                 status_code=400,
@@ -202,6 +222,7 @@ async def analyse_htmx_handler(
         import json
         ir_bands = (payload.get("ir_prediction") or {}).get("bands", [])
         return templates.TemplateResponse(
+            request,
             "components/analysis_results.html",
             {
                 "request": request,
@@ -216,6 +237,7 @@ async def analyse_htmx_handler(
     except Exception as e:
         logger.error("HTMX analysis failed: %s", e, exc_info=True)
         return templates.TemplateResponse(
+            request,
             "components/error_banner.html",
             {"request": request, "message": str(e)},
             status_code=500,

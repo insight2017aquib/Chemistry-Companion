@@ -249,8 +249,20 @@ class BatchExportPayload:
                 "ir_band_count": ir_counts[record_id],
                 "proton_nmr_signal_count": proton_counts[record_id],
                 "carbon_nmr_signal_count": carbon_counts[record_id],
-                "status": "success",
-                "error": "",
+                "status": "partial" if (
+                    descriptor.get("logp") is None 
+                    or fg_counts[record_id] == 0 
+                    or ir_counts[record_id] == 0 
+                    or proton_counts[record_id] == 0 
+                    or carbon_counts[record_id] == 0
+                ) else "success",
+                "error": "Missing subsystems" if (
+                    descriptor.get("logp") is None 
+                    or fg_counts[record_id] == 0 
+                    or ir_counts[record_id] == 0 
+                    or proton_counts[record_id] == 0 
+                    or carbon_counts[record_id] == 0
+                ) else "",
             })
 
         for failure in self.failures:

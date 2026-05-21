@@ -1,0 +1,71 @@
+<div class="border border-border rounded bg-card overflow-hidden">
+    <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+        <span class="font-bold text-sm">{{ title }}</span>
+        <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
+    </button>
+    <div class="accordion-content p-4 bg-card overflow-x-auto">
+        {% if spectrum_data.disclaimer %}
+        <p class="text-xs text-amber-700 mb-4">{{ spectrum_data.disclaimer }}</p>
+        {% endif %}
+        {% if spectrum_type == '1h' %}
+        <table class="w-full text-xs text-left">
+            <thead>
+                <tr class="text-slate-500 border-b border-border">
+                    <th class="pb-2 font-medium">δ (ppm)</th>
+                    <th class="pb-2 font-medium">Count</th>
+                    <th class="pb-2 font-medium">Mult.</th>
+                    <th class="pb-2 font-medium">Assignment</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+                {% for sig in spectrum_data.signals %}
+                <tr>
+                    <td class="py-2 font-mono text-emerald-600">
+                        {% if sig.get('ppm_range') %}
+                            {{ "%.2f"|format(sig['ppm_range'][0]) }}–{{ "%.2f"|format(sig['ppm_range'][1]) }}
+                        {% elif sig.get('ppm_mid') is not none %}
+                            {{ "%.2f"|format(sig['ppm_mid']) }}
+                        {% else %}
+                            No prediction available
+                        {% endif %}
+                    </td>
+                    <td class="py-2">{{ sig.get('integration', '') }}H</td>
+                    <td class="py-2">{{ sig.get('multiplicity', '') }}</td>
+                    <td class="py-2">{{ sig.get('label', '') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% elif spectrum_type == '13c' %}
+        <table class="w-full text-xs text-left">
+            <thead>
+                <tr class="text-slate-500 border-b border-border">
+                    <th class="pb-2 font-medium">δ (ppm)</th>
+                    <th class="pb-2 font-medium">Count</th>
+                    <th class="pb-2 font-medium">Assignment</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+                {% for env in spectrum_data.environments %}
+                <tr>
+                    <td class="py-2 font-mono text-emerald-600">
+                        {% if env.get('ppm_range') %}
+                            {{ "%.1f"|format(env['ppm_range'][0]) }}–{{ "%.1f"|format(env['ppm_range'][1]) }}
+                        {% elif env.get('ppm_mid') is not none %}
+                            {{ "%.1f"|format(env['ppm_mid']) }}
+                        {% else %}
+                            No prediction available
+                        {% endif %}
+                    </td>
+                    <td class="py-2">{{ env.get('carbon_count', 1) }}</td>
+                    <td class="py-2">{{ env.get('label', '') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+        {% if spectrum_data.summary_text %}
+        <p class="mt-4 text-sm text-slate-600">{{ spectrum_data.summary_text }}</p>
+        {% endif %}
+    </div>
+</div>

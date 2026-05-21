@@ -11,17 +11,17 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from sqlalchemy.orm import Session
 
+from api.templating import create_templates
 from database.models import get_db
 from services.history_service import HistoryService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 history_service = HistoryService()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent.parent / "templates"))
+templates = create_templates(Path(__file__).parent.parent.parent / "templates")
 
 
 @router.get("/history")

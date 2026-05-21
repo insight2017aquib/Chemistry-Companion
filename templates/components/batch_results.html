@@ -11,9 +11,10 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div class="cc-metric"><p class="cc-metric-label">Total</p><p class="cc-metric-value">{{ batch.total }}</p></div>
         <div class="cc-metric"><p class="cc-metric-label">Success</p><p class="cc-metric-value text-emerald-400">{{ batch.successful }}</p></div>
+        <div class="cc-metric"><p class="cc-metric-label">Partial</p><p class="cc-metric-value text-amber-400">{{ batch.partial }}</p></div>
         <div class="cc-metric"><p class="cc-metric-label">Failed</p><p class="cc-metric-value text-red-400">{{ batch.failed }}</p></div>
         <div class="cc-metric"><p class="cc-metric-label">Avg MW</p><p class="cc-metric-value">{{ batch.avg_mw }}</p></div>
     </div>
@@ -39,8 +40,12 @@
                         <td class="px-4 py-2">
                             {% if row.status == 'success' %}
                             <span class="cc-tag border-emerald-500/30 text-emerald-400 bg-emerald-500/10">OK</span>
+                            {% elif row.status == 'partial' %}
+                            <span class="cc-tag border-amber-500/30 text-amber-400 bg-amber-500/10 cursor-help" title="{{ row.error }}">Partial</span>
+                            <div class="text-[10px] text-amber-500/70 mt-1 max-w-[200px] truncate" title="{{ row.error }}">{{ row.error }}</div>
                             {% else %}
-                            <span class="cc-tag border-red-500/30 text-red-400" title="{{ row.error }}">Failed</span>
+                            <span class="cc-tag border-red-500/30 text-red-400 cursor-help" title="{{ row.error }}">Failed</span>
+                            <div class="text-[10px] text-red-500/70 mt-1 max-w-[200px] truncate" title="{{ row.error }}">{{ row.error }}</div>
                             {% endif %}
                         </td>
                     </tr>

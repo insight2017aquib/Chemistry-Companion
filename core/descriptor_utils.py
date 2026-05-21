@@ -101,9 +101,15 @@ def compute_descriptors(mol, mw: float | None = None) -> DescriptorRecord:
 
     molecular_weight = float(mw) if mw is not None else float(Descriptors.MolWt(mol))
 
-    # CalcBertzCT may not be available in all RDKit versions
+    # CalcBertzCT may not be available in all RDKit versions.
+    # Fall back to rdkit.Chem.Descriptors.BertzCT when available.
     try:
-        bertz_ct = float(rdMolDescriptors.CalcBertzCT(mol))
+        if hasattr(rdMolDescriptors, "CalcBertzCT"):
+            bertz_ct = float(rdMolDescriptors.CalcBertzCT(mol))
+        elif hasattr(Descriptors, "BertzCT"):
+            bertz_ct = float(Descriptors.BertzCT(mol))
+        else:
+            raise AttributeError("BertzCT is unavailable in installed RDKit")
     except (AttributeError, RuntimeError):
         bertz_ct = None
 
