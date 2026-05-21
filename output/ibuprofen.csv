@@ -1,2 +1,0 @@
-Name,SMILES,Formula,MW (Da),Exact Mass (Da),Heavy Atoms,Total Atoms,Rings,Aromatic,InChIKey,LogP,TPSA (A2),HBD,HBA,Rotatable Bonds,Bertz CT,Ro5 Pass,Ro5 Violations,Ro5: MW <= 500 Da,Ro5: LogP <= 5,Ro5: HBD <= 5,Ro5: HBA <= 10,FG: Hydroxyl (-OH),FG: Carboxylic acid,FG: Aromatic ring
-ibuprofen,CC(C)Cc1ccc(C(C)C(=O)O)cc1,C13H18O2,206.285,206.13068,15,33,1,True,HEFNNWSXXWATRW-UHFFFAOYSA-N,3.073,37.3,1,1,4,324.89,True,0,206.28 (OK),3.073 (OK),1 (OK),1 (OK),1,1,1
