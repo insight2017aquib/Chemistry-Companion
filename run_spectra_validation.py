@@ -43,7 +43,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("spectra_validation")
 
-DEFAULT_INPUT  = ROOT / "spectra_benchmark.csv"
+DEFAULT_INPUT  = ROOT / "spectra_benchmark.csv" if (ROOT / "spectra_benchmark.csv").exists() else ROOT / "data" / "spectra_benchmark.csv"
 DEFAULT_OUTPUT = ROOT / "outputs" / "spectra"
 
 
@@ -93,8 +93,7 @@ def _parse_peaks(raw: str | float | None) -> list[float]:
 def load_benchmark(csv_path: Path) -> list[dict]:
     """Load spectra_benchmark.csv into validation input records."""
     if not csv_path.exists():
-        logger.error("Benchmark CSV not found: %s", csv_path)
-        sys.exit(1)
+        raise FileNotFoundError(f"Benchmark CSV not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
     df = df.dropna(subset=["smiles"])

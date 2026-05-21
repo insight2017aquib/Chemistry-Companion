@@ -11,6 +11,7 @@
             <h2 class="font-bold mb-4">Upload Dataset</h2>
             <form action="/api/batch/process" method="post" enctype="multipart/form-data" class="space-y-4"
                   hx-post="/api/batch/process"
+                  hx-encoding="multipart/form-data"
                   hx-target="#batch-results-panel"
                   hx-swap="innerHTML"
                   hx-indicator="#batch-loading-indicator">

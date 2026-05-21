@@ -856,7 +856,7 @@ class ProtonNMRPredictor:
                 atom=atom,
                 ppm_mid=mid,
                 half_width=0.4,
-                label=f"{family.title()} CH",
+                label=f"{family.title()} aromatic CH",
                 annotation=self._hetero_annotation(family, hetero_position),
                 env_class=f"{family}_CH",
                 description="Heteroaromatic carbon-bound proton",

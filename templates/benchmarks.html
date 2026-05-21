@@ -1,10 +1,59 @@
 {% extends "base.html" %}
 {% block title %}Benchmarks — Chemistry Companion{% endblock %}
 {% block content %}
-<header class="mb-6">
-    <h1 class="text-2xl font-bold">Tool Comparison Benchmarks</h1>
-    <p class="text-sm text-secondary">Performance and feature evaluation against RDKit and Open Babel.</p>
+<header class="mb-6 flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold">Tool Comparison Benchmarks</h1>
+        <p class="text-sm text-secondary">Performance and feature evaluation against RDKit and Open Babel.</p>
+    </div>
+    <button id="run-benchmarks-btn" class="btn-primary flex items-center gap-2">
+        <span class="icon">⏱</span> Run Benchmarks
+    </button>
 </header>
+<div id="benchmark-status" class="mb-6 hidden"></div>
+<script>
+document.getElementById('run-benchmarks-btn').addEventListener('click', async function() {
+    const btn = this;
+    const statusDiv = document.getElementById('benchmark-status');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Running...';
+    statusDiv.className = 'mb-6 p-4 bg-indigo-50 text-indigo-700 rounded-md text-sm';
+    statusDiv.innerHTML = 'Executing benchmarks... This may take up to a minute.';
+    statusDiv.classList.remove('hidden');
+    
+    try {
+        const response = await fetch('/api/benchmarks/run', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            statusDiv.className = 'mb-6 p-4 bg-green-50 text-green-700 rounded-md text-sm';
+            let msg = `✅ Benchmarks complete. Processed ${data.data.n_molecules} molecules.`;
+            if (data.cached) {
+                msg += ' (Results served from cache)';
+            }
+            statusDiv.innerHTML = msg;
+            
+            // Reload all images to bypass cache
+            document.querySelectorAll('.card img').forEach(img => {
+                const url = new URL(img.src);
+                url.searchParams.set('t', new Date().getTime());
+                img.src = url.href;
+            });
+        } else {
+            statusDiv.className = 'mb-6 p-4 bg-red-50 text-red-700 rounded-md text-sm';
+            statusDiv.innerHTML = `❌ Benchmark failed: ${data.error}`;
+        }
+    } catch (err) {
+        statusDiv.className = 'mb-6 p-4 bg-red-50 text-red-700 rounded-md text-sm';
+        statusDiv.innerHTML = `❌ Network error: ${err.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+});
+</script>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
     <div class="card p-6">
         <h2 class="font-bold text-lg mb-4 text-center">Processing Speed Throughput</h2>

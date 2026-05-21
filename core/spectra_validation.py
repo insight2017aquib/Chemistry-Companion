@@ -39,6 +39,21 @@ DEFAULT_TOLERANCES = {
 }
 
 
+def predict_ir(mol: Any) -> Any:
+    from spectra.ir_predictor import predict_ir as _predict_ir
+    return _predict_ir(mol)
+
+
+def predict_proton_nmr(mol: Any) -> Any:
+    from spectra.proton_nmr import predict_proton_nmr as _predict_proton
+    return _predict_proton(mol)
+
+
+def predict_carbon_nmr(mol: Any) -> Any:
+    from spectra.carbon_nmr import predict_carbon_nmr as _predict_carbon
+    return _predict_carbon(mol)
+
+
 @dataclass(slots=True)
 class SpectraDomainMetrics:
     domain: str
@@ -392,13 +407,9 @@ def validate_spectra_workflow(
             report.records.append(record)
             continue
         try:
-            # Lazy imports here to avoid circular import at module load time
-            from spectra.ir_predictor import predict_ir as _predict_ir
-            from spectra.proton_nmr import predict_proton_nmr as _predict_proton
-            from spectra.carbon_nmr import predict_carbon_nmr as _predict_carbon
-            ir_prediction = _predict_ir(rdkit_mol)
-            proton_prediction = _predict_proton(rdkit_mol)
-            carbon_prediction = _predict_carbon(rdkit_mol)
+            ir_prediction = predict_ir(rdkit_mol)
+            proton_prediction = predict_proton_nmr(rdkit_mol)
+            carbon_prediction = predict_carbon_nmr(rdkit_mol)
         except Exception as exc:
             record.validation_error = f"Prediction failure: {exc}"
             report.records.append(record)
