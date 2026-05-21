@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Benchmarks — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-6">
+    <h1 class="text-2xl font-bold">Tool Comparison Benchmarks</h1>
+    <p class="text-sm text-secondary">Performance and feature evaluation against RDKit and Open Babel.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">Processing Speed Throughput</h2>
+        <div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/comparison/publication_plots/01_speed_comparison.svg" alt="Speed Comparison" class="max-w-full max-h-full object-contain">
+        </div>
+        <p class="text-sm text-slate-500 mt-4 text-center">Molecules processed per second (SMILES parsing + descriptors + FGs).</p>
+    </div>
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">Qualitative Features Matrix</h2>
+        <div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/comparison/publication_plots/02_feature_radar.svg" alt="Feature Radar" class="max-w-full max-h-full object-contain">
+        </div>
+        <p class="text-sm text-slate-500 mt-4 text-center">Workflow maturity and UI integration scale (0-3).</p>
+    </div>
+    <div class="card p-6 lg:col-span-2">
+        <h2 class="font-bold text-lg mb-4 text-center">Native Cheminformatics Output</h2>
+        <div class="max-w-3xl mx-auto aspect-video bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/comparison/publication_plots/03_descriptor_fg_counts.svg" alt="Feature Counts" class="max-w-full max-h-full object-contain">
+        </div>
+        <p class="text-sm text-slate-500 mt-4 text-center">Count of explicitly calculated descriptors and native functional group categorizations.</p>
+    </div>
+</div>
+{% endblock %}

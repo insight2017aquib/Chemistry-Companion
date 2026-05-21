@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Documentation — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-8"><h1 class="text-2xl font-bold text-[var(--cc-text)]">Documentation</h1></header>
+<div class="cc-card p-8 prose prose-invert max-w-none text-[var(--cc-text-muted)]">
+    <h2 class="text-[var(--cc-text)]">Quick start</h2>
+    <ol class="list-decimal pl-5 space-y-2">
+        <li>Enter SMILES, IUPAC name, or InChI on the Dashboard</li>
+        <li>Click <strong>Analyze</strong> — results load via HTMX</li>
+        <li>Explore descriptors, functional groups, and heuristic spectra tabs</li>
+        <li>Export via Excel (multi-sheet) or JSON/CSV/Markdown</li>
+    </ol>
+    <h2 class="text-[var(--cc-text)] mt-8">Keyboard shortcuts</h2>
+    <ul class="list-disc pl-5"><li><kbd class="px-1 rounded bg-[var(--cc-bg-elevated)]">⌘K</kbd> Command palette</li></ul>
+    <h2 class="text-[var(--cc-text)] mt-8">Architecture</h2>
+    <p>FastAPI → services → core/pipeline.py. Frontend is presentation-only.</p>
+</div>
+{% endblock %}

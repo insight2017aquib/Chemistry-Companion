@@ -1,0 +1,75 @@
+{# Polished molecule input card — include in dashboard/analysis #}
+<div class="cc-card cc-card-glow p-6 transition-shadow">
+    <div class="flex items-center justify-between mb-5">
+        <div>
+            <h2 class="text-lg font-semibold text-[var(--cc-text)]">Molecule Input</h2>
+            <p class="text-sm text-[var(--cc-text-muted)]">SMILES · IUPAC · InChI · file upload</p>
+        </div>
+        <span class="cc-tag text-indigo-300 border-indigo-500/30 bg-indigo-500/10">Live preview</span>
+    </div>
+
+    <form id="analysis-form"
+          hx-post="/analyse"
+          hx-target="#results-panel"
+          hx-swap="innerHTML"
+          hx-indicator="#loading-indicator"
+          class="space-y-5"
+          @htmx:after-request.window="if(event.detail.target.id==='results-panel') $dispatch('cc-analysis-done')">
+
+        <div class="flex flex-wrap gap-2 p-1 rounded-lg bg-[var(--cc-bg-elevated)] border border-[var(--cc-border)]">
+            {% for method, label in [('smiles','SMILES'),('name','IUPAC'),('inchi','InChI')] %}
+            <label class="flex-1 min-w-[5rem] cursor-pointer">
+                <input type="radio" name="input_method" value="{{ method }}" class="sr-only peer" {% if method=='smiles' %}checked{% endif %}>
+                <span class="block text-center py-2 px-3 rounded-md text-xs font-semibold text-[var(--cc-text-muted)] peer-checked:bg-indigo-600 peer-checked:text-white transition-all">{{ label }}</span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <div>
+            <label for="input_text" class="block text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-faint)] mb-2">Structure</label>
+            <textarea id="input_text" name="input_text" rows="4" required
+                placeholder="e.g. c1ccccc1  or  benzene"
+                class="cc-textarea"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label for="name" class="block text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-faint)] mb-2">Label</label>
+                <input type="text" id="name" name="name" placeholder="Optional name" class="cc-input">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-faint)] mb-2">File</label>
+                <input type="file" accept=".mol,.sdf,.smi,.txt" class="cc-input text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:bg-indigo-600 file:text-white">
+            </div>
+        </div>
+
+        <div id="structure-preview" class="cc-structure-viewer min-h-[120px] text-xs text-[var(--cc-text-faint)]">
+            Enter SMILES for instant preview
+        </div>
+
+        {% if examples %}
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-faint)] mb-2">Quick examples</p>
+            <div class="flex flex-wrap gap-2">
+                {% for ex in examples %}
+                <button type="button" class="example-pick cc-tag hover:bg-indigo-500/20 hover:border-indigo-400/40 cursor-pointer"
+                    data-smiles="{{ ex.smiles }}" data-name="{{ ex.name }}">{{ ex.name }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="flex flex-wrap gap-4 text-sm text-[var(--cc-text-muted)]">
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="include_spectra" value="true" checked class="rounded border-[var(--cc-border)] text-indigo-500"> Spectra</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="atom_numbering" value="true" class="rounded border-[var(--cc-border)] text-indigo-500"> Atom #</label>
+            <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" name="highlight_aromatic" value="true" class="rounded border-[var(--cc-border)] text-indigo-500"> Aromatic highlight</label>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="cc-btn cc-btn-primary flex-1 sm:flex-none">
+                <span>⚗</span> Analyze
+            </button>
+            <button type="reset" class="cc-btn cc-btn-ghost">Clear</button>
+        </div>
+    </form>
+</div>

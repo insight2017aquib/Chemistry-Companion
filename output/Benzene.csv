@@ -1,0 +1,2 @@
+Name,SMILES,Formula,MW (Da),Exact Mass (Da),Heavy Atoms,Total Atoms,Rings,Aromatic,InChIKey,LogP,TPSA (A2),HBD,HBA,Rotatable Bonds,Bertz CT,Ro5 Pass,Ro5 Violations,Ro5: MW <= 500 Da,Ro5: LogP <= 5,Ro5: HBD <= 5,Ro5: HBA <= 10,FG: Aromatic ring
+Benzene,c1ccccc1,C6H6,78.114,78.04695,6,12,1,True,UHOVQNZJYSORNB-UHFFFAOYSA-N,1.687,0.0,0,0,0,71.96,True,0,78.11 (OK),1.687 (OK),0 (OK),0 (OK),1

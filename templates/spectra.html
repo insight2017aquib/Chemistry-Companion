@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Spectral Analysis — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-8"><h1 class="text-2xl font-bold text-[var(--cc-text)]">Spectral Analysis</h1>
+<p class="text-[var(--cc-text-muted)]">Dedicated spectroscopy view — run analysis from the workbench first, or enter SMILES below.</p></header>
+<div class="max-w-2xl">{% include "components/molecule_input.html" %}</div>
+<div class="mt-6 cc-card p-6 min-h-[400px]" id="results-panel">{% include "components/empty_state.html" %}</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='js/workbench.js') }}"></script>{% endblock %}

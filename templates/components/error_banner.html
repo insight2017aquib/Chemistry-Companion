@@ -1,0 +1,10 @@
+<div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+    <strong class="font-semibold">Error:</strong> {{ message }}
+    {% if resolution %}
+    <div class="mt-2 text-xs text-red-700">
+        <div>Detected: <strong>{{ resolution.detected_type }}</strong></div>
+        <div>Resolved SMILES: <code>{{ resolution.canonical_smiles }}</code></div>
+        <div>Source: {{ resolution.source }}</div>
+    </div>
+    {% endif %}
+</div>

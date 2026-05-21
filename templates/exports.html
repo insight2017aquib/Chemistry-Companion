@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Exports — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-6">
+    <h1 class="text-2xl font-bold">Export Profiles</h1>
+    <p class="text-sm text-secondary">Download standardized, styled reporting templates across multiple analysis profiles.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="card p-6">
+        <h2 class="font-bold mb-4">Select Export Profile</h2>
+        <p class="text-sm text-slate-500 mb-4">Exports the latest saved analysis from history using the selected workbook profile.</p>
+        <form action="/api/export/profile" method="post" class="space-y-4">
+            <div class="space-y-2 border border-border rounded-lg overflow-hidden divide-y divide-border">
+                {% for profile in export_profiles %}
+                <label class="flex items-start gap-3 p-4 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors {% if loop.first %}bg-slate-50 dark:bg-slate-800{% endif %}">
+                    <input type="radio" name="profile" value="{{ profile.name }}" class="mt-1 border-border text-primary" {% if loop.first %}checked{% endif %}>
+                    <div>
+                        <div class="font-semibold text-sm">{{ profile.name }}</div>
+                        <div class="text-xs text-slate-500 mt-1">{{ profile.desc }}</div>
+                        <div class="text-[10px] text-primary mt-1 font-mono uppercase tracking-wider">Sheets: {{ profile.sheets }}</div>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+            
+            <button type="submit" class="btn-primary w-full mt-4">Download Excel Report</button>
+        </form>
+    </div>
+    
+    <div class="card p-6 flex flex-col items-center justify-center text-center">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-bold mb-4">
+            XLSX
+        </div>
+        <h3 class="font-bold text-lg">Publication-Grade Tables</h3>
+        <p class="text-sm text-slate-500 mt-2 max-w-sm">All Excel exports come pre-styled with publication-ready typography, clear separation of experimental and heuristic data, and built-in summary statistics.</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+chemistry_companion/
+├── core/
+│   ├── molecule_utils.py          # Molecule loading & parsing
+│   ├── descriptor_utils.py        # Descriptors + functional groups
+│   ├── visualization_utils.py     # 2D/3D rendering
+│   ├── dataset_utils.py           # Batch dataset processing
+│   └── config.py                  # Project configuration
+├── spectra/
+│   ├── ir_predictor.py
+│   ├── proton_nmr.py
+│   └── carbon_nmr.py
+├── reports/
+│   └── export_utils.py
+├── chemistry_companion.py         # Main CLI
+└── tests/

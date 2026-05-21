@@ -1,0 +1,44 @@
+{% set cnmr = result.carbon_nmr_prediction %}
+{% if cnmr %}
+<p class="text-xs text-amber-700 mb-4">{{ cnmr.disclaimer }}</p>
+{% if cnmr.environments %}
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+                <th class="px-3 py-2">Environment</th>
+                <th class="px-3 py-2">δ (ppm)</th>
+                <th class="px-3 py-2">Count</th>
+                <th class="px-3 py-2">Notes</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for env in cnmr.environments %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2 font-medium">{{ env.label or '—' }}</td>
+                <td class="px-3 py-2 font-mono">
+                    {% if env.ppm_range %}
+                    {{ '%.1f'|format(env.ppm_range[0]) }}–{{ '%.1f'|format(env.ppm_range[1]) }}
+                    {% elif env.shift_ppm %}
+                    {{ '%.1f'|format(env.shift_ppm) }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2">{{ env.carbon_count or 1 }}</td>
+                <td class="px-3 py-2 text-xs text-slate-500">
+                    {% if env.carbonyl_type %}Carbonyl ({{ env.carbonyl_type }}){% endif %}
+                    {% if env.heterocycle_family %}{{ env.heterocycle_family }}{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-sm text-slate-500 italic">No ¹³C environments predicted.</p>
+{% endif %}
+{% if cnmr.summary_text %}
+<p class="mt-4 text-sm text-slate-600">{{ cnmr.summary_text }}</p>
+{% endif %}
+{% else %}
+<p class="text-sm text-slate-500 italic">¹³C NMR prediction not available.</p>
+{% endif %}

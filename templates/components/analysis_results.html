@@ -1,0 +1,117 @@
+<div class="h-full flex flex-col">
+    <div class="flex items-center justify-between border-b border-border pb-4 mb-4">
+        <div>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">{{ result.molecule.name or 'Compound' }}</h2>
+            <p class="text-xs font-mono text-slate-500 mt-1">{{ result.molecule.smiles }}</p>
+        </div>
+        <div class="text-right">
+            <span class="text-sm font-semibold">{{ result.molecule.formula }}</span>
+            <p class="text-xs text-slate-500 mt-1">MW: {{ "%.2f"|format(result.molecule.mol_weight) }} Da</p>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto pr-2 space-y-4">
+        
+        <!-- Descriptors Accordion -->
+        <div class="border border-border rounded bg-card overflow-hidden">
+            <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span class="font-bold text-sm">Molecular Descriptors</span>
+                <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
+            </button>
+            <div class="accordion-content p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 bg-card">
+                <div><span class="block text-xs text-slate-500">LogP</span><span class="font-medium">{{ "%.2f"|format(result.descriptors.logp) }}</span></div>
+                <div><span class="block text-xs text-slate-500">TPSA</span><span class="font-medium">{{ "%.2f"|format(result.descriptors.tpsa) }}</span></div>
+                <div><span class="block text-xs text-slate-500">H-Bond Donors</span><span class="font-medium">{{ result.descriptors.hbd | default('—') }}</span></div>
+                <div><span class="block text-xs text-slate-500">H-Bond Acceptors</span><span class="font-medium">{{ result.descriptors.hba | default('—') }}</span></div>
+                <div><span class="block text-xs text-slate-500">Rotatable Bonds</span><span class="font-medium">{{ result.descriptors.rotatable_bonds | default('—') }}</span></div>
+                <div><span class="block text-xs text-slate-500">Rings</span><span class="font-medium">{{ result.descriptors.ring_count | default('—') }}</span></div>
+                <div><span class="block text-xs text-slate-500">Aromatic Rings</span><span class="font-medium">{{ result.descriptors.aromatic_ring_count | default('—') }}</span></div>
+            </div>
+        </div>
+
+        <!-- Functional Groups Accordion -->
+        <div class="border border-border rounded bg-card overflow-hidden">
+            <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span class="font-bold text-sm">Functional Groups</span>
+                <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
+            </button>
+            <div class="accordion-content p-4 bg-card">
+                {% if result.functional_groups %}
+                <div class="flex flex-wrap gap-2">
+                    {% for name, count in result.functional_groups.items() %}
+                        {% if count > 0 %}
+                        <span class="px-2 py-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 rounded text-xs font-medium">
+                            {{ name|replace('has_', '')|replace('_', ' ')|title }} <span class="opacity-75">({{ count }})</span>
+                        </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-500">No defined functional groups detected.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if result.ir_prediction %}
+        <!-- IR Spectra Accordion -->
+        <div class="border border-border rounded bg-card overflow-hidden">
+            <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span class="font-bold text-sm">Infrared (IR) Prediction (Heuristic)</span>
+                <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
+            </button>
+            <div class="accordion-content p-4 bg-card overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-border">
+                            <th class="pb-2 font-medium">Range (cm⁻¹)</th>
+                            <th class="pb-2 font-medium">Intensity</th>
+                            <th class="pb-2 font-medium">Assignment</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        {% for band in result.ir_prediction.bands %}
+                        <tr>
+                            <td class="py-2 font-mono text-primary">{{ band['wavenumber_range'] if band['wavenumber_range'] is defined else band['wavenumber_low'] ~ '-' ~ band['wavenumber_high'] }}</td>
+                            <td class="py-2">{{ band['intensity'] }}</td>
+                            <td class="py-2">{{ band['label'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if result.proton_nmr_prediction %}
+        <!-- 1H NMR Spectra Accordion -->
+        <div class="border border-border rounded bg-card overflow-hidden">
+            <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <span class="font-bold text-sm">¹H NMR Prediction (Heuristic)</span>
+                <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
+            </button>
+            <div class="accordion-content p-4 bg-card hidden overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-border">
+                            <th class="pb-2 font-medium">δ (ppm)</th>
+                            <th class="pb-2 font-medium">Count</th>
+                            <th class="pb-2 font-medium">Mult.</th>
+                            <th class="pb-2 font-medium">Assignment</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        {% for sig in result.proton_nmr_prediction.signals %}
+                        <tr>
+                            <td class="py-2 font-mono text-emerald-600">{{ "%.2f"|format(sig.get('shift_ppm', 0)) }}</td>
+                            <td class="py-2">{{ sig.get('integration', '') }}H</td>
+                            <td class="py-2">{{ sig.get('multiplicity', '') }}</td>
+                            <td class="py-2">{{ sig.get('label', '') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>

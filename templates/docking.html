@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Docking Prep — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-6">
+    <h1 class="text-2xl font-bold">Automated Docking Preparation</h1>
+    <p class="text-sm text-secondary">Generate optimized 3D structures and assign Gasteiger charges (PDBQT format) for AutoDock Vina.</p>
+</header>
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+    <div class="xl:col-span-4">
+        <div class="card p-6">
+            <h2 class="font-bold mb-4">Ligand Input</h2>
+            <form action="/api/docking/generate" method="post" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">SMILES or Name</label>
+                    <input type="text" name="input_text" class="w-full border border-border rounded p-2 text-sm bg-bg" required placeholder="e.g. CC(=O)O">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Target pH (Protonation)</label>
+                    <input type="number" step="0.1" name="ph" value="7.4" class="w-full border border-border rounded p-2 text-sm bg-bg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Forcefield Optimization</label>
+                    <select name="forcefield" class="w-full border border-border rounded p-2 text-sm bg-bg">
+                        <option value="mmff94" selected>MMFF94 (Recommended)</option>
+                        <option value="uff">UFF</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-primary w-full mt-4">Generate PDBQT</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="xl:col-span-8">
+        <div class="card min-h-[400px] flex flex-col items-center justify-center text-slate-400 p-12 relative">
+            <div class="text-6xl mb-4 opacity-50">⬡</div>
+            <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300">Docking Pipeline Ready</h3>
+            <p class="text-sm mt-2 text-center max-w-md">Input a SMILES to trigger the Open Babel embedding, geometry optimization, protonation, and charge assignment cascade. The resulting `.pdbqt` file will download automatically.</p>
+            
+            <div class="absolute bottom-4 right-4 text-xs text-slate-400">
+                Backend: Open Babel 3.x
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

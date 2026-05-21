@@ -1,0 +1,121 @@
+"""
+chemistry_companion/reports/export_utils.py
+===========================================
+Export molecular data to CSV, Excel (.xlsx), and JSON.
+
+Per-rule Ro5 detail columns are included in all export formats.
+JSON uses records orientation with indent=2 (FAIR-data ready).
+"""
+import logging
+from pathlib import Path
+from typing import Optional
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+def record_to_dict(mol_record, desc_record, name: Optional[str] = None) -> dict:
+    """Flatten MoleculeRecord + DescriptorRecord into a single export row."""
+    row = {
+        "Name":            name or mol_record.name or "Unknown",
+        "SMILES":          mol_record.smiles,
+        "Formula":         mol_record.formula,
+        "MW (Da)":         mol_record.mol_weight,
+        "Exact Mass (Da)": mol_record.exact_mass,
+        "Heavy Atoms":     mol_record.num_heavy_atoms,
+        "Total Atoms":     mol_record.num_atoms,
+        "Rings":           mol_record.num_rings,
+        "Aromatic":        mol_record.is_aromatic,
+        "InChIKey":        mol_record.inchikey,
+        "LogP":            desc_record.logp,
+        "TPSA (A2)":       desc_record.tpsa,
+        "HBD":             desc_record.hbd,
+        "HBA":             desc_record.hba,
+        "Rotatable Bonds": desc_record.rotatable_bonds,
+        "Bertz CT":        desc_record.bertz_ct,
+        "Ro5 Pass":        desc_record.ro5_pass,
+        "Ro5 Violations":  desc_record.ro5_violations,
+    }
+    # Per-rule Ro5 detail
+    for rule, detail in desc_record.ro5_details.items():
+        row[f"Ro5: {rule}"] = f"{detail['value']} ({'OK' if detail['pass'] else 'FAIL'})"
+    # Functional group columns
+    for fg_name, count in desc_record.functional_groups.items():
+        row[f"FG: {fg_name}"] = count
+    return row
+
+
+def build_dataframe(records: list[dict]) -> pd.DataFrame:
+    df = pd.DataFrame(records)
+    fg_cols = [c for c in df.columns if c.startswith("FG:")]
+    df[fg_cols] = df[fg_cols].fillna(0).astype(int)
+    return df
+
+
+def export_csv(df: pd.DataFrame, output_path: str) -> None:
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(output_path, index=False, encoding="utf-8")
+    logger.info("CSV exported -> %s  (%d rows)", output_path, len(df))
+
+
+def export_excel(df: pd.DataFrame, output_path: str,
+                  sheet_name: str = "Descriptors", freeze_header: bool = True) -> None:
+    """Export to .xlsx with auto column widths and frozen header row."""
+    try:
+        import openpyxl  # noqa
+    except ImportError:
+        raise ImportError("openpyxl required: pip install openpyxl")
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+        ws = writer.sheets[sheet_name]
+        for col_cells in ws.columns:
+            max_len = max(
+                len(str(cell.value)) if cell.value is not None else 0
+                for cell in col_cells
+            )
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 55)
+        if freeze_header:
+            ws.freeze_panes = "A2"
+    logger.info("Excel exported -> %s  (%d rows)", output_path, len(df))
+
+
+def export_json(df: pd.DataFrame, output_path: str) -> None:
+    """
+    Export to JSON (records orientation, indent=2, force_ascii=False).
+    Format: [{"Name": "Aspirin", "LogP": 1.31, ...}, ...]
+    Suitable for FAIR data pipelines, REST APIs, and ML ingestion.
+    """
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    df.to_json(output_path, orient="records", indent=2, force_ascii=False)
+    logger.info("JSON exported -> %s  (%d records)", output_path, len(df))
+
+
+def export_batch(
+    mol_desc_pairs: list[tuple],
+    output_dir: str = "output",
+    base_name: str = "chemistry_companion_results",
+    formats: list[str] = ("csv",),
+) -> dict[str, str]:
+    """
+    Export a list of (MoleculeRecord, DescriptorRecord) pairs.
+    Accepts formats: "csv", "xlsx", "json"
+    Returns: dict of format -> file path
+    """
+    rows = [record_to_dict(m, d) for m, d in mol_desc_pairs]
+    df   = build_dataframe(rows)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    dispatch   = {"csv": export_csv, "xlsx": export_excel, "json": export_json}
+    extensions = {"csv": ".csv",    "xlsx": ".xlsx",      "json": ".json"}
+    paths: dict[str, str] = {}
+
+    for fmt in formats:
+        fmt = fmt.lower()
+        if fmt not in dispatch:
+            logger.warning("Unknown format %r -- skipping.", fmt)
+            continue
+        p = str(Path(output_dir) / (base_name + extensions[fmt]))
+        dispatch[fmt](df, p)
+        paths[fmt] = p
+    return paths

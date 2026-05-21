@@ -1,0 +1,22 @@
+{% set fg = result.functional_group_report %}
+<div class="space-y-4">
+    {% if fg.summary_text %}
+    <p class="text-sm text-[var(--cc-text-muted)]">{{ fg.summary_text }}</p>
+    {% endif %}
+    {% if fg.matches %}
+        {% for category, groups in fg.by_category.items() %}
+        <div>
+            <h4 class="text-xs font-semibold uppercase tracking-wide text-[var(--cc-text-faint)] mb-2">{{ category | replace('_', ' ') }}</h4>
+            <div class="flex flex-wrap gap-2">
+                {% for g in groups %}
+                <span class="cc-tag border-indigo-500/25 bg-indigo-500/10 text-indigo-200">
+                    {{ g.name }}{% if g.count > 1 %} ×{{ g.count }}{% endif %}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="text-sm text-[var(--cc-text-faint)] italic">No functional groups detected.</p>
+    {% endif %}
+</div>
