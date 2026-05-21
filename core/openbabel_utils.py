@@ -15,7 +15,17 @@ import tempfile
 from pathlib import Path
 from typing import Any, Iterable, List
 
-from openbabel import openbabel, pybel
+try:
+    from openbabel import openbabel, pybel
+    _HAS_OPENBABEL = True
+except ImportError:
+    openbabel = None
+    pybel = None
+    _HAS_OPENBABEL = False
+
+def _check_openbabel():
+    if not _HAS_OPENBABEL:
+        raise RuntimeError("Open Babel is not available.")
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +73,7 @@ def _normalize_format(fmt: str) -> str:
 
 
 def _read_molecules(input_data: str, input_format: str) -> list[pybel.Molecule]:
+    _check_openbabel()
     input_format = _normalize_format(input_format)
     if input_format == "inchi":
         from core.conversion_utils import inchi_to_molblock
@@ -124,6 +135,7 @@ def _read_molecules(input_data: str, input_format: str) -> list[pybel.Molecule]:
 
 
 def _write_molecule(molecule: pybel.Molecule, output_format: str) -> str:
+    _check_openbabel()
     output_format = _normalize_format(output_format)
     if output_format not in _SUPPORTED_OUTPUT_FORMATS:
         raise ValueError(f"Unsupported Open Babel output format: {output_format}")
@@ -144,6 +156,7 @@ def _write_molecule(molecule: pybel.Molecule, output_format: str) -> str:
 
 
 def _coerce_molecule_data(value: Any, input_format: str = "smi") -> pybel.Molecule:
+    _check_openbabel()
     if isinstance(value, pybel.Molecule):
         return value
     if not isinstance(value, str):
@@ -191,6 +204,7 @@ def inchi_to_mol2(inchi: str) -> str:
 
 
 def _remove_salts_from_molecule(molecule: pybel.Molecule) -> pybel.Molecule:
+    _check_openbabel()
     fragments = molecule.OBMol.Separate()
     if not fragments or len(fragments) <= 1:
         return molecule
@@ -286,6 +300,7 @@ def generate_3d_coordinates(
     input_data: str | pybel.Molecule,
     input_format: str = "smi",
 ) -> pybel.Molecule:
+    _check_openbabel()
     if isinstance(input_data, pybel.Molecule):
         molecule = input_data
     else:
@@ -305,6 +320,7 @@ def optimize_geometry(
     method: str = "uff",
     steps: int = 250,
 ) -> pybel.Molecule:
+    _check_openbabel()
     if isinstance(input_data, pybel.Molecule):
         molecule = input_data
     else:

@@ -174,6 +174,7 @@ class BatchService:
                 "proton_nmr_prediction": result.proton_nmr_prediction,
                 "carbon_nmr_prediction": result.carbon_nmr_prediction,
                 "visualization_path": result.visualization_path,
+                "metadata": result.metadata,
             }
 
         except Exception as e:

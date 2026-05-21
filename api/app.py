@@ -11,16 +11,16 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from api.templating import create_templates
 from database.models import configure_database, get_db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent.parent
-templates = Jinja2Templates(directory=str(ROOT / "templates"))
+templates = create_templates(ROOT / "templates")
 
 EXAMPLES = [
     {"name": "Benzene", "smiles": "c1ccccc1"},
@@ -67,6 +67,11 @@ app.include_router(export.router, prefix="/api", tags=["export"])
 app.include_router(history.router, prefix="/api", tags=["history"])
 app.include_router(structure.router, prefix="/api", tags=["structure"])
 
+from .routes import docking, validation, benchmarks
+app.include_router(docking.router, prefix="/api", tags=["docking"])
+app.include_router(validation.router, prefix="/api", tags=["validation"])
+app.include_router(benchmarks.router, prefix="/api", tags=["benchmarks"])
+
 from .routes.analysis import analyse_htmx_handler  # noqa: E402
 
 
@@ -75,6 +80,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     from services.history_service import HistoryService
     items = HistoryService().list_analyses(db, limit=6)
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         _page_ctx(request, recent_items=items, stats={"recent": len(items), "batch": 0, "exports": 0}),
     )
@@ -82,54 +88,54 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/analysis", response_class=HTMLResponse)
 async def analysis_page(request: Request):
-    return templates.TemplateResponse("analysis.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "analysis.html", _page_ctx(request))
 
 
 @app.get("/batch", response_class=HTMLResponse)
 async def batch_page(request: Request):
-    return templates.TemplateResponse("batch.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "batch.html", _page_ctx(request))
 
 
 @app.get("/spectra", response_class=HTMLResponse)
 async def spectra_page(request: Request):
-    return templates.TemplateResponse("spectra.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "spectra.html", _page_ctx(request))
 
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request, db: Session = Depends(get_db)):
     from services.history_service import HistoryService
     items = HistoryService().list_analyses(db, limit=100)
-    return templates.TemplateResponse("history.html", _page_ctx(request, items=items))
+    return templates.TemplateResponse(request, "history.html", _page_ctx(request, items=items))
 
 
 @app.get("/exports", response_class=HTMLResponse)
 async def exports_page(request: Request):
-    return templates.TemplateResponse("exports.html", _page_ctx(request, export_profiles=EXPORT_PROFILES))
+    return templates.TemplateResponse(request, "exports.html", _page_ctx(request, export_profiles=EXPORT_PROFILES))
 
 
 @app.get("/validation", response_class=HTMLResponse)
 async def validation_page(request: Request):
-    return templates.TemplateResponse("validation.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "validation.html", _page_ctx(request))
 
 
 @app.get("/benchmarks", response_class=HTMLResponse)
 async def benchmarks_page(request: Request):
-    return templates.TemplateResponse("benchmarks.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "benchmarks.html", _page_ctx(request))
 
 
 @app.get("/docking", response_class=HTMLResponse)
 async def docking_page(request: Request):
-    return templates.TemplateResponse("docking.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "docking.html", _page_ctx(request))
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
-    return templates.TemplateResponse("settings.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "settings.html", _page_ctx(request))
 
 
 @app.get("/docs", response_class=HTMLResponse)
 async def docs_page(request: Request):
-    return templates.TemplateResponse("docs.html", _page_ctx(request))
+    return templates.TemplateResponse(request, "docs.html", _page_ctx(request))
 
 
 @app.post("/analyse", response_class=HTMLResponse)
