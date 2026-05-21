@@ -84,34 +84,16 @@
 
         {% if result.proton_nmr_prediction %}
         <!-- 1H NMR Spectra Accordion -->
-        <div class="border border-border rounded bg-card overflow-hidden">
-            <button class="accordion-header w-full flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                <span class="font-bold text-sm">¹H NMR Prediction (Heuristic)</span>
-                <span class="accordion-icon transform transition-transform text-slate-400">▼</span>
-            </button>
-            <div class="accordion-content p-4 bg-card hidden overflow-x-auto">
-                <table class="w-full text-xs text-left">
-                    <thead>
-                        <tr class="text-slate-500 border-b border-border">
-                            <th class="pb-2 font-medium">δ (ppm)</th>
-                            <th class="pb-2 font-medium">Count</th>
-                            <th class="pb-2 font-medium">Mult.</th>
-                            <th class="pb-2 font-medium">Assignment</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-border">
-                        {% for sig in result.proton_nmr_prediction.signals %}
-                        <tr>
-                            <td class="py-2 font-mono text-emerald-600">{{ "%.2f"|format(sig.get('shift_ppm', 0)) }}</td>
-                            <td class="py-2">{{ sig.get('integration', '') }}H</td>
-                            <td class="py-2">{{ sig.get('multiplicity', '') }}</td>
-                            <td class="py-2">{{ sig.get('label', '') }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        {% with title='¹H NMR Prediction (Heuristic)', spectrum_data=result.proton_nmr_prediction, spectrum_type='1h' %}
+        {% include "components/spectrum_accordion.html" %}
+        {% endwith %}
+        {% endif %}
+
+        {% if result.carbon_nmr_prediction %}
+        <!-- 13C NMR Spectra Accordion -->
+        {% with title='¹³C NMR Prediction (Heuristic)', spectrum_data=result.carbon_nmr_prediction, spectrum_type='13c' %}
+        {% include "components/spectrum_accordion.html" %}
+        {% endwith %}
         {% endif %}
     </div>
 </div>

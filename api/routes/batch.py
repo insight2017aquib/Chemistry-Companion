@@ -14,17 +14,17 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from pydantic import BaseModel
 
+from api.templating import create_templates
 from services import BatchService
 from exports.schemas.batch_export_schema import build_batch_export_payload
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 batch_service = BatchService()
-templates = Jinja2Templates(directory=str(Path(__file__).parent.parent.parent / "templates"))
+templates = create_templates(Path(__file__).parent.parent.parent / "templates")
 
 
 class BatchRequest(BaseModel):
@@ -46,6 +46,7 @@ class BatchResultRow(BaseModel):
 class BatchResponse(BaseModel):
     total: int
     successful: int
+    partial: int = 0
     failed: int
     avg_mw: float = 0.0
     results: List[BatchResultRow] = []
@@ -56,7 +57,7 @@ class BatchResponse(BaseModel):
 def _parse_upload(file: UploadFile, content: bytes) -> List[Dict[str, str]]:
     name = (file.filename or "").lower()
     if name.endswith(".csv"):
-        reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
+        reader = csv.DictReader(io.StringIO(content.decode("utf-8-sig")))
         rows = list(reader)
         molecules = []
         for row in rows:
@@ -85,7 +86,7 @@ def _parse_upload(file: UploadFile, content: bytes) -> List[Dict[str, str]]:
                 })
         return molecules
 
-    lines = content.decode("utf-8").strip().split("\n")
+    lines = content.decode("utf-8-sig").strip().split("\n")
     return [
         {"smiles": line.strip(), "name": f"Mol_{i+1}"}
         for i, line in enumerate(lines)
@@ -112,12 +113,45 @@ def _format_batch_response(result: Dict[str, Any]) -> BatchResponse:
             if mw:
                 mw_values.append(mw)
             inp = item.get("input", {})
+            metadata = item.get("metadata", {})
+            warnings = metadata.get("warnings", [])
+            errors = metadata.get("errors", [])
+            
+            is_partial = False
+            missing_systems = []
+            
+            if not item.get("descriptors"):
+                is_partial = True
+                missing_systems.append("descriptors")
+            if not item.get("functional_groups"):
+                is_partial = True
+                missing_systems.append("functional_groups")
+                
+            # If include_spectra was requested, check predictions
+            if metadata.get("include_spectra", True):
+                if not item.get("ir_prediction"):
+                    is_partial = True
+                    missing_systems.append("ir_prediction")
+                if not item.get("proton_nmr_prediction"):
+                    is_partial = True
+                    missing_systems.append("proton_nmr_prediction")
+                if not item.get("carbon_nmr_prediction"):
+                    is_partial = True
+                    missing_systems.append("carbon_nmr_prediction")
+            
+            all_issues = warnings + errors
+            if missing_systems:
+                all_issues.append("Missing subsystems: " + ", ".join(missing_systems))
+            
+            error_text = "; ".join(all_issues)
+            
             rows.append(BatchResultRow(
                 smiles=inp.get("smiles", ""),
                 name=inp.get("name", ""),
-                status="success",
+                status="partial" if is_partial else "success",
                 mw=mw,
                 formula=formula,
+                error=error_text,
             ))
         else:
             inp = item.get("input", {})
@@ -129,13 +163,15 @@ def _format_batch_response(result: Dict[str, Any]) -> BatchResponse:
             ))
 
     total = result.get("total_molecules", len(rows))
-    successful = result.get("successful_analyses", sum(1 for r in rows if r.status == "success"))
-    failed = result.get("failed_analyses", total - successful)
+    successful = sum(1 for r in rows if r.status == "success")
+    partial = sum(1 for r in rows if r.status == "partial")
+    failed = total - (successful + partial)
     avg_mw = sum(mw_values) / len(mw_values) if mw_values else 0.0
 
     return BatchResponse(
         total=total,
         successful=successful,
+        partial=partial,
         failed=failed,
         avg_mw=round(avg_mw, 2),
         results=rows,

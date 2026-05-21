@@ -100,17 +100,20 @@ class ChemistryPipeline:
         descriptors = self._descriptor_calculator(molecule.rdkit_mol)
         descriptor_summary = self._descriptor_summarizer(descriptors)
 
+        pipeline_warnings: list[str] = []
+
         public_functional_groups = dict(getattr(descriptors, "functional_groups", {}) or {})
-        fg_report = self._detect_functional_groups(molecule.rdkit_mol)
+        fg_report = self._detect_functional_groups(molecule.rdkit_mol, pipeline_warnings)
 
         ir_pred: IRPrediction | None = None
         proton_pred: ProtonNMRPrediction | None = None
         carbon_pred: CarbonNMRPrediction | None = None
 
         if self.include_spectra:
-            ir_pred = self._safe_predict(self._ir_predictor, molecule.rdkit_mol, "IR")
-            proton_pred = self._safe_predict(self._proton_predictor, molecule.rdkit_mol, "1H NMR")
-            carbon_pred = self._safe_predict(self._carbon_predictor, molecule.rdkit_mol, "13C NMR")
+            ir_pred = self._safe_predict(self._ir_predictor, molecule.rdkit_mol, "IR", pipeline_warnings)
+            proton_pred = self._safe_predict(self._proton_predictor, molecule.rdkit_mol, "1H NMR", pipeline_warnings)
+            carbon_pred = self._safe_predict(self._carbon_predictor, molecule.rdkit_mol, "13C NMR", pipeline_warnings)
+
 
         vis_path = None
         if save_image and image_path is not None:
@@ -132,7 +135,7 @@ class ChemistryPipeline:
                 export_path=Path(export_path),
             )
 
-        metadata = {
+        metadata: dict[str, Any] = {
             "input": {
                 "smiles": smiles,
                 "inchi": inchi,
@@ -140,6 +143,8 @@ class ChemistryPipeline:
                 "name": name,
             },
             "include_spectra": self.include_spectra,
+            "warnings": pipeline_warnings,
+            "errors": [],
         }
 
         # Attach resolution metadata for front-end and API use.
@@ -188,7 +193,7 @@ class ChemistryPipeline:
             iupac_name=iupac,
         )
 
-    def _detect_functional_groups(self, mol: Any) -> FunctionalGroupReport | None:
+    def _detect_functional_groups(self, mol: Any, warnings: list[str]) -> FunctionalGroupReport | None:
         try:
             if self._fg_detector is None:
                 return None
@@ -200,10 +205,12 @@ class ChemistryPipeline:
                 return None
             return _coerce_fg_report(result)
         except Exception as exc:
-            self.logger.warning("Functional-group detection failed: %s", exc)
+            msg = f"Functional-group detection failed: {exc}"
+            self.logger.warning(msg)
+            warnings.append(msg)
             return None
 
-    def _safe_predict(self, predictor: PredictorLike, mol: Any, label: str) -> Any | None:
+    def _safe_predict(self, predictor: PredictorLike, mol: Any, label: str, warnings: list[str]) -> Any | None:
         try:
             if hasattr(predictor, "predict"):
                 result = predictor.predict(mol)
@@ -214,7 +221,9 @@ class ChemistryPipeline:
                 return None
             return result
         except Exception as exc:
-            self.logger.warning("%s prediction failed: %s", label, exc)
+            msg = f"{label} prediction failed: {exc}"
+            self.logger.warning(msg)
+            warnings.append(msg)
             return None
 
     def _export_results(

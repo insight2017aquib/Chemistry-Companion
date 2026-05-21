@@ -9,7 +9,7 @@
     <div class="xl:col-span-4">
         <div class="card p-6">
             <h2 class="font-bold mb-4">Ligand Input</h2>
-            <form action="/api/docking/generate" method="post" class="space-y-4">
+            <form id="docking-form" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium mb-1">SMILES or Name</label>
                     <input type="text" name="input_text" class="w-full border border-border rounded p-2 text-sm bg-bg" required placeholder="e.g. CC(=O)O">
@@ -32,7 +32,7 @@
     </div>
     
     <div class="xl:col-span-8">
-        <div class="card min-h-[400px] flex flex-col items-center justify-center text-slate-400 p-12 relative">
+        <div id="docking-results" class="card min-h-[400px] flex flex-col items-center justify-center text-slate-400 p-12 relative">
             <div class="text-6xl mb-4 opacity-50">⬡</div>
             <h3 class="text-lg font-medium text-slate-600 dark:text-slate-300">Docking Pipeline Ready</h3>
             <p class="text-sm mt-2 text-center max-w-md">Input a SMILES to trigger the Open Babel embedding, geometry optimization, protonation, and charge assignment cascade. The resulting `.pdbqt` file will download automatically.</p>
@@ -43,4 +43,57 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('docking-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const resultsPanel = document.getElementById('docking-results');
+    
+    resultsPanel.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full text-slate-500">
+            <div class="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full mb-4"></div>
+            <p class="font-medium">Preparing structure... this may take a moment.</p>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/api/docking/generate', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            resultsPanel.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-emerald-600">
+                    <div class="text-5xl mb-4">✅</div>
+                    <h3 class="text-xl font-bold mb-2">Job Completed Successfully</h3>
+                    <p class="text-sm text-slate-500 mb-6 text-center max-w-md">Structure has been optimized (Job ID: <span class="font-mono text-xs">${data.job_id.substring(0,8)}...</span>)</p>
+                    <a href="${data.download_url}" download class="btn-primary px-6 py-3 shadow-lg hover:shadow-xl transition-shadow flex items-center gap-2">
+                        ⬇️ Download PDBQT
+                    </a>
+                </div>
+            `;
+        } else {
+            resultsPanel.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-red-500">
+                    <div class="text-5xl mb-4">❌</div>
+                    <h3 class="text-lg font-bold mb-2">Preparation Failed</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-400 bg-red-50 dark:bg-red-900/20 p-4 rounded-md max-w-lg text-center">${data.error}</p>
+                </div>
+            `;
+        }
+    } catch (err) {
+        resultsPanel.innerHTML = `
+            <div class="flex flex-col items-center justify-center h-full text-red-500">
+                <div class="text-5xl mb-4">⚠️</div>
+                <h3 class="text-lg font-bold mb-2">Network Error</h3>
+                <p class="text-sm text-slate-500">${err.message}</p>
+            </div>
+        `;
+    }
+});
+</script>
 {% endblock %}
