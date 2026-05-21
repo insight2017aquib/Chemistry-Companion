@@ -1,0 +1,44 @@
+{% set ir = result.ir_prediction %}
+{% if ir %}
+<p class="text-xs text-amber-700 mb-4">{{ ir.disclaimer }}</p>
+{% if ir.bands %}
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-xs uppercase text-slate-500">
+            <tr>
+                <th class="px-3 py-2">Assignment</th>
+                <th class="px-3 py-2">Range (cm⁻¹)</th>
+                <th class="px-3 py-2">Intensity</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for band in ir.bands %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2 font-medium">{{ band.label }}</td>
+                <td class="px-3 py-2 font-mono">
+                    {% if band.lower_cm1 and band.upper_cm1 %}
+                    {{ band.lower_cm1 }}–{{ band.upper_cm1 }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-3 py-2">
+                    <span class="rounded px-2 py-0.5 text-xs
+                        {% if band.intensity == 'strong' %}bg-red-100 text-red-800
+                        {% elif band.intensity == 'medium' %}bg-amber-100 text-amber-800
+                        {% else %}bg-slate-100 text-slate-700{% endif %}">
+                        {{ band.intensity or '—' }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p class="text-sm text-slate-500 italic">No IR bands predicted.</p>
+{% endif %}
+{% if ir.summary_text %}
+<p class="mt-4 text-sm text-slate-600">{{ ir.summary_text }}</p>
+{% endif %}
+{% else %}
+<p class="text-sm text-slate-500 italic">IR prediction not available.</p>
+{% endif %}

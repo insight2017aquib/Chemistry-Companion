@@ -1,0 +1,25 @@
+{% set d = result.descriptors %}
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    {% for label, key, unit in [
+        ('Formula', 'formula', ''),
+        ('Mol. weight', 'molecular_weight', ' g/mol'),
+        ('Exact mass', 'exact_mass', ''),
+        ('LogP', 'logp', ''),
+        ('TPSA', 'tpsa', ' Ų'),
+        ('HBD', 'hbd', ''),
+        ('HBA', 'hba', ''),
+        ('Rot. bonds', 'rotatable_bonds', ''),
+        ('Rings', 'ring_count', ''),
+        ('Aromatic', 'aromatic_ring_count', ''),
+    ] %}
+    <div class="cc-metric">
+        <p class="cc-metric-label">{{ label }}</p>
+        <p class="cc-metric-value text-base">
+            {% set v = d[key] %}
+            {% if v is not none and v != '' %}
+                {% if key in ['molecular_weight','exact_mass','logp','tpsa'] %}{{ '%.2f'|format(v) }}{% else %}{{ v }}{% endif %}{{ unit }}
+            {% else %}—{% endif %}
+        </p>
+    </div>
+    {% endfor %}
+</div>

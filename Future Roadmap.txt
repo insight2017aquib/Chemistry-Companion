@@ -1,0 +1,7 @@
+Machine Learning-based NMR/IR predictors
+ Integration with ORCA and Gaussian
+ AutoDock Vina docking interface
+ ADMET prediction models
+ Web interface (Gradio/Streamlit)
+ Reaction prediction utilities
+ 3D visualization with Py3Dmol

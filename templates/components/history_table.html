@@ -1,0 +1,22 @@
+{% if items %}
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="history-rows">
+    {% for item in items %}
+    <article id="history-{{ item.id }}" class="cc-card p-4 flex gap-4 hover:border-indigo-500/30 transition-colors">
+        <img src="/api/structure.png?smiles={{ item.smiles | urlencode }}&width=96&height=96"
+             alt="" class="w-16 h-16 rounded-lg border border-[var(--cc-border)] object-contain bg-[var(--cc-bg-elevated)] shrink-0">
+        <div class="min-w-0 flex-1">
+            <p class="font-semibold text-[var(--cc-text)] truncate">{{ item.name or 'Unnamed' }}</p>
+            <p class="font-mono text-xs text-[var(--cc-text-muted)] truncate mt-0.5" title="{{ item.smiles }}">{{ item.smiles }}</p>
+            <p class="text-xs text-[var(--cc-text-faint)] mt-2">{{ item.descriptors.formula if item.descriptors else '—' }} · {{ item.created_at.strftime('%Y-%m-%d') if item.created_at is not string else item.created_at[:10] if item.created_at else '' }}</p>
+            <div class="flex gap-2 mt-3">
+                <a href="/analysis?smiles={{ item.smiles | urlencode }}" class="cc-btn cc-btn-ghost text-xs py-1">Open</a>
+                <button hx-delete="/api/history/{{ item.id }}/row" hx-target="#history-{{ item.id }}" hx-swap="outerHTML"
+                    class="cc-btn cc-btn-ghost text-xs py-1 text-red-400">Delete</button>
+            </div>
+        </div>
+    </article>
+    {% endfor %}
+</div>
+{% else %}
+{% include "components/empty_state.html" %}
+{% endif %}
