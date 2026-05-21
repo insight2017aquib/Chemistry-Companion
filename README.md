@@ -27,7 +27,7 @@ Built on top of RDKit and Open Babel, it bridges the gap between bare-metal chem
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/aquibbelal/chemistry-companion.git
+   git clone https://github.com/aquibbelal/chemistry-companion.git](https://github.com/insight2017aquib/Chemistry-Companion
    cd chemistry-companion
    ```
 2. (Optional but recommended) Create a virtual environment:
