@@ -1,0 +1,31 @@
+[
+  {
+    "Name":"Aspirin",
+    "SMILES":"CC(=O)Oc1ccccc1C(=O)O",
+    "Formula":"C9H8O4",
+    "MW (Da)":180.159,
+    "Exact Mass (Da)":180.042259,
+    "Heavy Atoms":13,
+    "Total Atoms":21,
+    "Rings":1,
+    "Aromatic":true,
+    "InChIKey":"BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
+    "LogP":1.31,
+    "TPSA (A2)":63.6,
+    "HBD":1,
+    "HBA":3,
+    "Rotatable Bonds":2,
+    "Bertz CT":343.22,
+    "Ro5 Pass":true,
+    "Ro5 Violations":0,
+    "Ro5: MW <= 500 Da":"180.16 (OK)",
+    "Ro5: LogP <= 5":"1.31 (OK)",
+    "Ro5: HBD <= 5":"1 (OK)",
+    "Ro5: HBA <= 10":"3 (OK)",
+    "FG: Hydroxyl (-OH)":1,
+    "FG: Carboxylic acid":1,
+    "FG: Ester":1,
+    "FG: Aromatic ring":1,
+    "FG: Ether (C-O-C)":1
+  }
+]

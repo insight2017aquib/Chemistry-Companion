@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-8">
+    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Chemistry Companion Workbench</h1>
+    <p class="text-slate-500 mt-2">Publication-Grade Cheminformatics & Spectral Prediction Engine</p>
+</header>
+
+<div class="card p-6 mb-8">
+    <h2 class="text-xl font-bold mb-4">Quick Workbench</h2>
+    <form hx-post="/analyse" hx-target="#dashboard-workbench" hx-indicator="#dashboard-loading" class="space-y-4">
+        <div>
+            <label class="block text-sm font-medium mb-1">SMILES or Name</label>
+            <input type="text" name="input_text" class="w-full border border-border rounded p-2 text-sm bg-bg" required placeholder="e.g. CC(=O)Oc1ccccc1C(=O)O">
+            <input type="hidden" name="input_method" value="smiles">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <button type="submit" class="btn-primary">Run Quick Analysis</button>
+            <button type="reset" class="btn-secondary">Clear</button>
+        </div>
+    </form>
+    <div id="dashboard-workbench" class="mt-6"></div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div class="card p-6">
+        <h3 class="text-slate-500 text-sm font-medium">Recent Analyses</h3>
+        <p class="text-3xl font-bold mt-2">{{ stats.recent | default(0) }}</p>
+    </div>
+    <div class="card p-6">
+        <h3 class="text-slate-500 text-sm font-medium">Batch Jobs</h3>
+        <p class="text-3xl font-bold mt-2">{{ stats.batch | default(0) }}</p>
+    </div>
+    <div class="card p-6">
+        <h3 class="text-slate-500 text-sm font-medium">Exported Reports</h3>
+        <p class="text-3xl font-bold mt-2">{{ stats.exports | default(0) }}</p>
+    </div>
+    <div class="card p-6">
+        <h3 class="text-slate-500 text-sm font-medium">System Status</h3>
+        <p class="text-3xl font-bold mt-2 text-emerald-600">Online</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2">
+        <h2 class="text-xl font-bold mb-4">Quick Start Workflow</h2>
+        <div class="card">
+            <div class="p-4 border-b border-border flex items-start gap-4">
+                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">1</div>
+                <div>
+                    <h3 class="font-bold text-base">Single Molecule Analysis</h3>
+                    <p class="text-sm text-slate-500 mt-1">Profile a SMILES for Descriptors, FGs, and Spectra.</p>
+                    <a href="/analysis" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Analysis &rarr;</a>
+                </div>
+            </div>
+            <div class="p-4 border-b border-border flex items-start gap-4">
+                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">2</div>
+                <div>
+                    <h3 class="font-bold text-base">Batch Profiling</h3>
+                    <p class="text-sm text-slate-500 mt-1">Upload a CSV to process thousands of compounds instantly.</p>
+                    <a href="/batch" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Batch &rarr;</a>
+                </div>
+            </div>
+            <div class="p-4 flex items-start gap-4">
+                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">3</div>
+                <div>
+                    <h3 class="font-bold text-base">Docking Preparation</h3>
+                    <p class="text-sm text-slate-500 mt-1">Generate 3D structures and assign Gasteiger charges (PDBQT).</p>
+                    <a href="/docking" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Docking Prep &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div>
+        <h2 class="text-xl font-bold mb-4">Recent History</h2>
+        <div class="card overflow-hidden">
+            {% if recent_items %}
+                <ul class="divide-y divide-border">
+                {% for item in recent_items %}
+                    <li class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <div class="flex justify-between items-center">
+                            <span class="font-mono text-xs truncate max-w-[150px]">{{ item.smiles }}</span>
+                            <span class="text-xs text-slate-400">{{ item.created_at.strftime('%H:%M') if item.created_at is not string else item.created_at[:5] if item.created_at else '' }}</span>
+                        </div>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <div class="p-8 text-center text-slate-500 text-sm">
+                    No recent analyses.
+                </div>
+            {% endif %}
+            <div class="p-3 bg-slate-50 dark:bg-slate-800 border-t border-border text-center">
+                <a href="/history" class="text-sm font-medium text-primary hover:underline">View all history</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

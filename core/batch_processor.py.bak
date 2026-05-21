@@ -1,0 +1,371 @@
+"""
+chemistry_companion/core/batch_processor.py
+============================================
+Production-ready batch processing module for Chemistry Companion.
+
+Features:
+- Supports CSV, TXT, and Excel input
+- Smart column auto-detection (SMILES prioritized)
+- Safe error handling with separate success/error DataFrames
+- Optional multiprocessing
+- Rate limiting for IUPAC lookups
+- Heterocycle detection support
+- BatchResult.summary() convenience method
+"""
+
+import csv
+import json
+import logging
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Union
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+_SMILES_COLUMNS = {"smiles", "smi", "canonical_smiles", "smiles_string",
+                   "structure", "smiles_canonical"}
+_NAME_COLUMNS   = {"name", "iupac", "iupac_name", "compound_name", "compound",
+                   "chemical_name", "molecule_name", "id"}
+
+
+@dataclass
+class MoleculeRow:
+    row_index:  int
+    smiles:     Optional[str] = None
+    iupac_name: Optional[str] = None
+    label:      Optional[str] = None
+    raw:        dict = field(default_factory=dict)
+
+
+@dataclass
+class ProcessedEntry:
+    row_index:  int
+    input_repr: str
+    status:     str
+    error:      Optional[str] = None
+
+    name:            Optional[str]   = None
+    smiles:          Optional[str]   = None
+    formula:         Optional[str]   = None
+    inchikey:        Optional[str]   = None
+    mol_weight:      Optional[float] = None
+    exact_mass:      Optional[float] = None
+    num_atoms:       Optional[int]   = None
+    num_heavy_atoms: Optional[int]   = None
+    num_rings:       Optional[int]   = None
+    is_aromatic:     Optional[bool]  = None
+
+    logp:                  Optional[float] = None
+    tpsa:                  Optional[float] = None
+    hbd:                   Optional[int]   = None
+    hba:                   Optional[int]   = None
+    rotatable_bonds:       Optional[int]   = None
+    bertz_ct:              Optional[float] = None
+    ro5_pass:              Optional[bool]  = None
+    ro5_violations:        Optional[int]   = None
+    functional_groups:     Optional[str]   = None   # JSON string
+    heterocycles_detected: Optional[int]   = None   # NEW ✅
+
+
+@dataclass
+class BatchResult:
+    entries:    List[ProcessedEntry]
+    df_success: pd.DataFrame
+    df_errors:  pd.DataFrame
+    total:      int
+    n_success:  int
+    n_errors:   int
+    elapsed_s:  float
+
+    def summary(self) -> Dict[str, Any]:                  # NEW ✅
+        """Return quick summary statistics as a dict."""
+        return {
+            "total":           self.total,
+            "successful":      self.n_success,
+            "failed":          self.n_errors,
+            "success_rate_%":  round(self.n_success / self.total * 100, 1)
+                               if self.total > 0 else 0.0,
+            "elapsed_seconds": self.elapsed_s,
+        }
+
+
+def _normalise_header(col: str) -> str:
+    return col.strip().lower()
+
+
+def _detect_columns(columns: List[str]) -> tuple[Optional[str], Optional[str]]:
+    smiles_col = name_col = None
+    for col in columns:
+        norm = _normalise_header(col)
+        if norm in _SMILES_COLUMNS and smiles_col is None:
+            smiles_col = col
+        if norm in _NAME_COLUMNS and name_col is None:
+            name_col = col
+    return smiles_col, name_col
+
+
+def read_csv_file(path: str) -> List[MoleculeRow]:
+    rows: List[MoleculeRow] = []
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        reader = csv.DictReader(fh)
+        if not reader.fieldnames:
+            raise ValueError(f"Empty CSV file: {path}")
+        smiles_col, name_col = _detect_columns(list(reader.fieldnames))
+        if not smiles_col and not name_col:
+            raise ValueError(
+                f"No SMILES or name column found in {path}.\n"
+                f"Expected one of: {sorted(_SMILES_COLUMNS | _NAME_COLUMNS)}"
+            )
+        logger.info("CSV columns detected — SMILES: %r  Name: %r", smiles_col, name_col)
+        for i, raw in enumerate(reader, start=1):
+            smi  = raw.get(smiles_col, "").strip() if smiles_col else ""
+            name = raw.get(name_col,   "").strip() if name_col   else ""
+            if not smi and not name:
+                continue
+            rows.append(MoleculeRow(
+                row_index=i, smiles=smi or None,
+                iupac_name=name or None if not smi else None,
+                label=name or smi, raw=dict(raw),
+            ))
+    return rows
+
+
+def read_txt_file(path: str) -> List[MoleculeRow]:
+    rows: List[MoleculeRow] = []
+    with open(path, encoding="utf-8") as fh:
+        for i, line in enumerate(fh, start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("InChI="):
+                logger.warning("Row %d: InChI input not supported. Skipping.", i)
+                continue
+            looks_like_smiles = any(c in line for c in "()[]=#@\\/%0123456789")
+            rows.append(MoleculeRow(
+                row_index=i,
+                smiles=line     if looks_like_smiles else None,
+                iupac_name=line if not looks_like_smiles else None,
+                label=line,
+            ))
+    return rows
+
+
+def read_excel_file(path: str, sheet_name: Union[int, str] = 0) -> List[MoleculeRow]:
+    try:
+        import openpyxl  # noqa
+    except ImportError:
+        raise ImportError("openpyxl required: pip install openpyxl")
+
+    # FIX ✅: apply .str.strip() to catch leading/trailing whitespace from ChemDraw exports
+    df = (pd.read_excel(path, sheet_name=sheet_name, dtype=str)
+            .fillna("")
+            .apply(lambda col: col.str.strip()))
+
+    smiles_col, name_col = _detect_columns(list(df.columns))
+    if not smiles_col and not name_col:
+        raise ValueError(f"No SMILES or name column found in {path}")
+    logger.info("Excel columns detected — SMILES: %r  Name: %r", smiles_col, name_col)
+
+    rows: List[MoleculeRow] = []
+    for i, row in df.iterrows():
+        smi  = row[smiles_col].strip() if smiles_col else ""
+        name = row[name_col].strip()   if name_col   else ""
+        if not smi and not name:
+            continue
+        rows.append(MoleculeRow(
+            row_index=int(i) + 2,
+            smiles=smi      or None,
+            iupac_name=name or None if not smi else None,
+            label=name or smi,
+            raw=row.to_dict(),
+        ))
+    return rows
+
+
+def read_input_file(path: str, sheet_name: Union[int, str] = 0) -> List[MoleculeRow]:
+    suffix = Path(path).suffix.lower()
+    dispatch = {
+        ".csv":  read_csv_file,
+        ".txt":  read_txt_file,
+        ".xlsx": lambda p: read_excel_file(p, sheet_name=sheet_name),
+        ".xls":  lambda p: read_excel_file(p, sheet_name=sheet_name),
+    }
+    if suffix not in dispatch:
+        raise ValueError(
+            f"Unsupported file type: {suffix!r}\n"
+            f"Supported: {list(dispatch.keys())}"
+        )
+    rows = dispatch[suffix](path)
+    logger.info("Read %d entries from %s", len(rows), path)
+    return rows
+
+
+def _process_one(row: MoleculeRow) -> ProcessedEntry:
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from core.molecule_utils   import load_molecule
+    from core.descriptor_utils import compute_descriptors
+
+    input_repr = row.smiles or row.iupac_name or f"row_{row.row_index}"
+
+    try:
+        mol_rec  = load_molecule(smiles=row.smiles, iupac_name=row.iupac_name)
+        if row.label and not mol_rec.name:
+            mol_rec.name = row.label
+
+        desc_rec = compute_descriptors(mol_rec.rdkit_mol, mw=mol_rec.mol_weight)
+
+        # Heterocycle detection — FIX ✅: pass mol, not desc_rec
+        ring_info    = mol_rec.rdkit_mol.GetRingInfo()
+        hetero_count = sum(
+            1 for ring in ring_info.AtomRings()
+            if any(
+                mol_rec.rdkit_mol.GetAtomWithIdx(i).GetAtomicNum() not in (6, 1)
+                for i in ring
+            )
+        )
+
+        return ProcessedEntry(
+            row_index=row.row_index,
+            input_repr=input_repr,
+            status="ok",
+            name=mol_rec.name,
+            smiles=mol_rec.smiles,
+            formula=mol_rec.formula,
+            inchikey=mol_rec.inchikey,
+            mol_weight=mol_rec.mol_weight,
+            exact_mass=mol_rec.exact_mass,
+            num_atoms=mol_rec.num_atoms,
+            num_heavy_atoms=mol_rec.num_heavy_atoms,
+            num_rings=mol_rec.num_rings,
+            is_aromatic=mol_rec.is_aromatic,
+            logp=desc_rec.logp,
+            tpsa=desc_rec.tpsa,
+            hbd=desc_rec.hbd,
+            hba=desc_rec.hba,
+            rotatable_bonds=desc_rec.rotatable_bonds,
+            bertz_ct=desc_rec.bertz_ct,
+            ro5_pass=desc_rec.ro5_pass,
+            ro5_violations=desc_rec.ro5_violations,
+            functional_groups=json.dumps(desc_rec.functional_groups)
+                              if desc_rec.functional_groups else "{}",
+            heterocycles_detected=hetero_count,
+        )
+
+    except Exception as exc:
+        logger.warning("Row %d skipped [%s]: %s", row.row_index, input_repr[:60], exc)
+        return ProcessedEntry(
+            row_index=row.row_index,
+            input_repr=input_repr,
+            status="error",
+            error=str(exc),
+        )
+
+
+def run_batch(
+    rows:           List[MoleculeRow],
+    max_workers:    int   = 1,
+    rate_limit_s:   float = 0.2,
+    progress_every: int   = 10,
+) -> BatchResult:
+    t_start = time.perf_counter()
+    entries: List[ProcessedEntry] = []
+    total   = len(rows)
+
+    if total == 0:
+        logger.warning("Batch received 0 rows.")
+        return _build_result([], t_start)
+
+    logger.info("Starting batch: %d molecules (workers=%d)", total, max_workers)
+
+    if max_workers > 1:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_map = {executor.submit(_process_one, row): row for row in rows}
+            for i, future in enumerate(as_completed(future_map), 1):
+                entries.append(future.result())
+                if i % progress_every == 0 or i == total:
+                    ok = sum(1 for e in entries if e.status == "ok")
+                    logger.info("Progress: %d/%d  (ok=%d)", i, total, ok)
+        entries.sort(key=lambda e: e.row_index)   # restore input order
+    else:
+        for i, row in enumerate(rows, 1):
+            if row.iupac_name and not row.smiles and rate_limit_s > 0:
+                time.sleep(rate_limit_s)
+            entries.append(_process_one(row))
+            if i % progress_every == 0 or i == total:
+                ok = sum(1 for e in entries if e.status == "ok")
+                logger.info("Progress: %d/%d  (ok=%d)", i, total, ok)
+
+    result = _build_result(entries, t_start)
+    logger.info(
+        "Batch complete: %d/%d succeeded, %d errors, %.2fs",
+        result.n_success, result.total, result.n_errors, result.elapsed_s,
+    )
+    return result
+
+
+def _build_result(entries: List[ProcessedEntry], t_start: float) -> BatchResult:
+    success = [e for e in entries if e.status == "ok"]
+    errors  = [e for e in entries if e.status == "error"]
+
+    # FIX ✅: drop status/error columns from success DataFrame
+    df_success = (
+        pd.DataFrame([asdict(e) for e in success])
+          .drop(columns=["status", "error"], errors="ignore")
+        if success else pd.DataFrame()
+    )
+    df_errors = (
+        pd.DataFrame([{
+            "row_index":  e.row_index,
+            "input_repr": e.input_repr,
+            "error":      e.error,
+        } for e in errors])
+        if errors else pd.DataFrame()
+    )
+
+    return BatchResult(
+        entries=entries, df_success=df_success, df_errors=df_errors,
+        total=len(entries), n_success=len(success), n_errors=len(errors),
+        elapsed_s=round(time.perf_counter() - t_start, 3),
+    )
+
+
+def process_file(
+    path:           str,
+    max_workers:    int         = 1,
+    rate_limit_s:   float       = 0.2,
+    progress_every: int         = 10,
+    sheet_name:     Union[int, str] = 0,
+) -> BatchResult:
+    """
+    End-to-end pipeline: read file -> process -> return BatchResult.
+
+    Example::
+        result = process_file("compounds.csv")
+        print(result.summary())
+        result.df_success.to_csv("output/results.csv", index=False)
+    """
+    rows = read_input_file(path, sheet_name=sheet_name)
+    return run_batch(rows, max_workers=max_workers,
+                     rate_limit_s=rate_limit_s, progress_every=progress_every)
+
+
+def rows_from_smiles_list(
+    smiles_list: List[str],
+    names:       Optional[List[str]] = None,
+) -> List[MoleculeRow]:
+    if names and len(names) != len(smiles_list):
+        raise ValueError("names list must have the same length as smiles_list.")
+    return [
+        MoleculeRow(
+            row_index=i + 1,
+            smiles=smi,
+            label=names[i] if names else None,
+            raw={"smiles": smi},
+        )
+        for i, smi in enumerate(smiles_list)
+    ]

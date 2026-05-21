@@ -1,0 +1,55 @@
+<div class="space-y-6 cc-results-enter">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-[var(--cc-text)]">Batch Results</h2>
+            <p class="text-sm text-[var(--cc-text-muted)]">Export-ready normalized workbook data is available for this batch.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" class="export-btn cc-btn cc-btn-primary text-xs" data-format="xlsx" data-profile="full">Excel</button>
+            <button type="button" class="export-btn cc-btn cc-btn-ghost text-xs" data-format="csv">CSV</button>
+            <button type="button" class="export-btn cc-btn cc-btn-ghost text-xs" data-format="json">JSON</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="cc-metric"><p class="cc-metric-label">Total</p><p class="cc-metric-value">{{ batch.total }}</p></div>
+        <div class="cc-metric"><p class="cc-metric-label">Success</p><p class="cc-metric-value text-emerald-400">{{ batch.successful }}</p></div>
+        <div class="cc-metric"><p class="cc-metric-label">Failed</p><p class="cc-metric-value text-red-400">{{ batch.failed }}</p></div>
+        <div class="cc-metric"><p class="cc-metric-label">Avg MW</p><p class="cc-metric-value">{{ batch.avg_mw }}</p></div>
+    </div>
+    <div class="cc-card overflow-hidden">
+        <div class="overflow-x-auto max-h-[480px]">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-[var(--cc-bg-elevated)] text-xs uppercase text-[var(--cc-text-faint)]">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-left">SMILES</th>
+                        <th class="px-4 py-3 text-left">Formula</th>
+                        <th class="px-4 py-3 text-left">MW</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[var(--cc-border)]">
+                    {% for row in batch.results %}
+                    <tr class="hover:bg-indigo-500/5">
+                        <td class="px-4 py-2">{{ row.name or '—' }}</td>
+                        <td class="px-4 py-2 font-mono text-xs max-w-[200px] truncate" title="{{ row.smiles }}">{{ row.smiles }}</td>
+                        <td class="px-4 py-2 font-mono">{{ row.formula or '—' }}</td>
+                        <td class="px-4 py-2">{{ '%.2f'|format(row.mw) if row.mw else '—' }}</td>
+                        <td class="px-4 py-2">
+                            {% if row.status == 'success' %}
+                            <span class="cc-tag border-emerald-500/30 text-emerald-400 bg-emerald-500/10">OK</span>
+                            {% else %}
+                            <span class="cc-tag border-red-500/30 text-red-400" title="{{ row.error }}">Failed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% if export_json is defined %}
+    <script type="application/json" id="analysis-export-data">{{ export_json | safe }}</script>
+    {% endif %}
+</div>

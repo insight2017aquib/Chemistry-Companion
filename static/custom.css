@@ -1,0 +1,92 @@
+/* static/custom.css */
+/* Additional custom styles for Chemistry Companion */
+
+/* Molecule input styling */
+.molecule-input {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    font-size: 0.875rem;
+}
+
+/* Spectrum visualization placeholder */
+.spectrum-placeholder {
+    background: linear-gradient(90deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(#f0f0f0 25%, transparent 25%);
+    background-size: 20px 20px;
+    border: 2px dashed #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-style: italic;
+}
+
+/* Loading states */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+/* Analysis result cards */
+.analysis-card {
+    transition: all 0.2s ease-in-out;
+}
+
+.analysis-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Tab styling */
+.tab-button {
+    transition: all 0.2s ease-in-out;
+}
+
+.tab-button:hover {
+    background-color: #f9fafb;
+}
+
+/* Progress bars */
+.progress-bar {
+    transition: width 0.3s ease-in-out;
+}
+
+/* Error states */
+.error-border {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 1px #ef4444;
+}
+
+/* Success states */
+.success-border {
+    border-color: #10b981;
+    box-shadow: 0 0 0 1px #10b981;
+}
+
+/* Responsive molecule display */
+@media (max-width: 640px) {
+    .molecule-input {
+        font-size: 0.75rem;
+    }
+
+    .spectrum-plot {
+        min-height: 250px;
+    }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+    .spectrum-placeholder {
+        background: linear-gradient(90deg, #374151 25%, transparent 25%),
+                    linear-gradient(#374151 25%, transparent 25%);
+        border-color: #6b7280;
+        color: #9ca3af;
+    }
+}

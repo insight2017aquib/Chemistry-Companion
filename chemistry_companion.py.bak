@@ -1,0 +1,978 @@
+"""
+chemistry_companion/chemistry_companion.py
+==========================================
+CLI entry point — Phase 1 + Phase 2 spectral commands.
+
+Subcommands
+-----------
+  analyse     Single-molecule full analysis pipeline
+  batch       Batch analysis from CSV/SMILES list
+  ir          IR absorption band prediction
+  hnmr        Estimated 1H NMR shifts
+  cnmr        Estimated 13C NMR shifts
+  funcgroups  Functional group detection
+  image       2D structure image export
+  export      Export descriptors to CSV / JSON / XLSX
+  demo        Run built-in demo (Benzene / Aspirin / Caffeine / Ibuprofen)
+  version     Print version and dependency info
+
+Usage examples
+--------------
+  python chemistry_companion.py analyse --smiles "c1ccccc1" --name Benzene
+  python chemistry_companion.py analyse --iupac caffeine --save-image --export csv
+  python chemistry_companion.py batch --file compounds.csv --export csv xlsx
+  python chemistry_companion.py ir --smiles "CC(=O)Oc1ccccc1C(=O)O"
+  python chemistry_companion.py hnmr --smiles "Cc1ccccc1"
+  python chemistry_companion.py cnmr --smiles "Cc1ccccc1"
+  python chemistry_companion.py funcgroups --smiles "CC(=O)Oc1ccccc1C(=O)O"
+  python chemistry_companion.py image --smiles "c1ccccc1" --output-dir output/
+  python chemistry_companion.py export --smiles "c1ccccc1" --formats csv json
+  python chemistry_companion.py demo
+  python chemistry_companion.py --verbose analyse --smiles "c1ccccc1"
+
+Architecture
+------------
+Three-layer design, each independently testable:
+
+  run_*()        Pure pipeline functions — no argparse, no sys.exit, importable in tests
+  _cmd_*()       Thin CLI shims — unpack args, call run_*(), handle sys.exit codes
+  build_parser() Registers all subcommands with full help text
+
+Logging
+-------
+Centralized via core.logging_utils.configure_logging() wired through
+core.config.ChemistryCompanionSettings. Falls back to logging.basicConfig
+if the config subsystem is unavailable.
+
+Settings
+--------
+Reads core.config.get_settings() on startup. Honours environment variables:
+  CHEM_COMPANION_LOGGING__LEVEL=DEBUG
+  CHEM_COMPANION_DIRECTORIES__OUTPUT_DIR=/tmp/results
+  CHEM_COMPANION_IMAGE__WIDTH=800
+
+Scientific notes
+----------------
+  - NMR shifts are HEURISTIC / APPROXIMATE — not DFT-derived
+  - IR bands are FUNCTIONAL-GROUP HEURISTICS — not quantum calculations
+  - Docking scores are not experimentally validated
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import logging
+import os
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+# ---------------------------------------------------------------------------
+# Path bootstrap — ensures project root is importable regardless of cwd
+# ---------------------------------------------------------------------------
+_PROJECT_ROOT = Path(__file__).resolve().parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+# ---------------------------------------------------------------------------
+# Core imports — fail loudly with actionable messages
+# ---------------------------------------------------------------------------
+try:
+    from core.molecule_utils import load_molecule, MoleculeRecord
+except ImportError as _e:
+    sys.exit(
+        f"[ERROR] Could not import core.molecule_utils: {_e}\n"
+        "Ensure RDKit is installed and the project root is in PYTHONPATH."
+    )
+
+try:
+    from core.descriptor_utils import compute_descriptors, summarise_descriptors
+except ImportError as _e:
+    sys.exit(f"[ERROR] Could not import core.descriptor_utils: {_e}")
+
+try:
+    from core.visualization_utils import save_2d_image
+except ImportError as _e:
+    sys.exit(f"[ERROR] Could not import core.visualization_utils: {_e}")
+
+try:
+    from reports.export_utils import export_batch
+except ImportError as _e:
+    sys.exit(f"[ERROR] Could not import reports.export_utils: {_e}")
+
+# Optional: settings + centralized logging (graceful fallback if not yet wired)
+try:
+    from core.config import (
+        ChemistryCompanionSettings,
+        get_settings,
+        reset_settings_cache,
+    )
+    _SETTINGS_AVAILABLE = True
+except ImportError:
+    _SETTINGS_AVAILABLE = False
+
+try:
+    from core.logging_utils import configure_logging, set_verbosity
+    _LOGGING_UTILS_AVAILABLE = True
+except ImportError:
+    _LOGGING_UTILS_AVAILABLE = False
+
+# RDKit version for banner
+try:
+    from rdkit import __version__ as _rdkit_version
+except ImportError:
+    _rdkit_version = "not installed"
+
+# ---------------------------------------------------------------------------
+# Module-level logger (namespace matches package)
+# ---------------------------------------------------------------------------
+logger = logging.getLogger("chemistry_companion")
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+VERSION = "0.3.0"
+
+DEMO_MOLECULES: List[Tuple[str, str]] = [
+    ("Benzene",   "c1ccccc1"),
+    ("Aspirin",   "CC(=O)Oc1ccccc1C(=O)O"),
+    ("Caffeine",  "Cn1cnc2c1c(=O)n(c(=O)n2C)C"),
+    ("Ibuprofen", "CC(C)Cc1ccc(cc1)C(C)C(=O)O"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Startup: settings + logging (called ONCE from main())
+# ---------------------------------------------------------------------------
+
+def _prepare_runtime(verbose: bool = False) -> Optional["ChemistryCompanionSettings"]:
+    """
+    Bootstrap settings and configure logging centrally.
+
+    Resolution order
+    ----------------
+    1. core.config.get_settings()  → ChemistryCompanionSettings (pydantic-settings)
+    2. settings.prepare_runtime()  → creates output/images/exports/logs dirs
+    3. core.logging_utils.configure_logging(settings=...) → idempotent handler setup
+    4. Fallback to logging.basicConfig if either module is unavailable
+
+    Returns the active settings object, or None if unavailable.
+    Called ONCE from main() — never from individual _cmd_* handlers.
+    """
+    settings = None
+
+    if _SETTINGS_AVAILABLE:
+        try:
+            reset_settings_cache()
+            settings = get_settings()
+            settings.prepare_runtime()
+        except Exception as exc:
+            logging.getLogger("chemistry_companion").warning(
+                "Settings initialisation failed (%s) — using defaults.", exc
+            )
+
+    if _LOGGING_UTILS_AVAILABLE:
+        try:
+            configure_logging(
+                settings=settings if _SETTINGS_AVAILABLE else None,
+                level="DEBUG" if verbose else (
+                    getattr(getattr(settings, "logging", None), "level", None) or "INFO"
+                ),
+                log_file=(
+                    settings.log_file
+                    if settings is not None and hasattr(settings, "log_file")
+                    else None
+                ),
+                file_logging=(
+                    settings.logging.log_to_file
+                    if settings is not None
+                    else False
+                ),
+            )
+        except Exception as exc:
+            _basic_logging(verbose)
+            logging.getLogger("chemistry_companion").debug(
+                "configure_logging() failed (%s) — using basicConfig.", exc
+            )
+    else:
+        _basic_logging(verbose)
+
+    return settings
+
+
+def _basic_logging(verbose: bool) -> None:
+    """Minimal fallback logger when logging_utils is unavailable."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+        stream=sys.stdout,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+def _banner() -> str:
+    try:
+        import pydantic
+        pdv = getattr(pydantic, "__version__", getattr(pydantic, "VERSION", "?"))
+    except Exception:
+        pdv = "not installed"
+    try:
+        import pandas as pd
+        pav = pd.__version__
+    except Exception:
+        pav = "not installed"
+    return (
+        "\n"
+        "================================================================\n"
+        f"  Chemistry Companion  v{VERSION}\n"
+        "  Modular Cheminformatics and Spectroscopy Toolkit\n"
+        f"  RDKit {_rdkit_version} | Pydantic {pdv} | pandas {pav}\n"
+        "================================================================"
+    )
+
+
+def _safe_name(name: str) -> str:
+    """Sanitize a string for safe use as a filesystem base name."""
+    for ch in (" ", "/", "\\", ":", "*", "?", '"', "<", ">", "|"):
+        name = name.replace(ch, "_")
+    return name.strip("._")
+
+
+def _resolve_output_dir(
+    cli_dir: str,
+    settings: Optional["ChemistryCompanionSettings"] = None,
+) -> str:
+    """
+    Resolve effective output directory.
+
+    Priority: CLI --output-dir > settings.directories.output_dir > 'output'
+    """
+    if cli_dir and cli_dir != "output":
+        return cli_dir
+    if settings is not None:
+        try:
+            return str(settings.directories.output_dir)
+        except Exception:
+            pass
+    return cli_dir or "output"
+
+
+def _add_molecule_args(p: argparse.ArgumentParser) -> None:
+    """Attach standard molecule-input arguments to a subparser."""
+    grp = p.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--smiles", type=str, metavar="SMILES",  help="SMILES string")
+    grp.add_argument("--inchi",  type=str, metavar="InChI",   help="InChI string")
+    grp.add_argument("--file",   type=str, metavar="PATH",    help="MOL / SDF file path")
+    grp.add_argument("--iupac",  type=str, metavar="NAME",    help="IUPAC name (PubChem lookup)")
+    p.add_argument("--name", type=str, default=None,          help="Override compound name label")
+
+
+def _print_section(title: str, lines: List[str]) -> None:
+    """Pretty-print a labelled section block to stdout."""
+    width = 64
+    print(f"\n  {'─' * width}")
+    print(f"  {title}")
+    print(f"  {'─' * width}")
+    for line in lines:
+        print(f"  {line}")
+
+
+def _load_mol(args: argparse.Namespace) -> "MoleculeRecord":
+    """Parse molecule from CLI namespace. Raises ValueError if no input given."""
+    smiles    = getattr(args, "smiles", None)
+    inchi     = getattr(args, "inchi",  None)
+    file_path = getattr(args, "file",   None)
+    iupac     = getattr(args, "iupac",  None)
+    if not any([smiles, inchi, file_path, iupac]):
+        raise ValueError(
+            "No molecule input. Provide one of: --smiles / --inchi / --iupac / --file."
+        )
+    mol_rec = load_molecule(
+        smiles=smiles, inchi=inchi, file_path=file_path, iupac_name=iupac
+    )
+    override = getattr(args, "name", None)
+    if override:
+        mol_rec.name = override
+    return mol_rec
+
+
+# ---------------------------------------------------------------------------
+# Pipeline functions  (importable, no sys.exit, fully testable)
+# ---------------------------------------------------------------------------
+
+def run_analyse(
+    smiles:     Optional[str] = None,
+    inchi:      Optional[str] = None,
+    file_path:  Optional[str] = None,
+    iupac_name: Optional[str] = None,
+    name:       Optional[str] = None,
+    save_image: bool = False,
+    export:     Optional[List[str]] = None,
+    output_dir: str = "output",
+) -> Tuple["MoleculeRecord", object]:
+    """
+    Full Phase 1 pipeline: parse → descriptors → optional image → optional export.
+
+    Parameters
+    ----------
+    smiles, inchi, file_path, iupac_name : mutually exclusive molecule inputs
+    name        : override compound name used in outputs and filenames
+    save_image  : save a 2D PNG to <output_dir>/<name>_2d.png
+    export      : list of export formats — any of ['csv', 'xlsx', 'json']
+    output_dir  : root directory for all output files
+
+    Returns
+    -------
+    (MoleculeRecord, DescriptorRecord)
+
+    Raises
+    ------
+    ValueError         : no molecule input or unparseable input
+    FileNotFoundError  : --file given but does not exist
+    """
+    export = export or []
+    os.makedirs(output_dir, exist_ok=True)
+
+    if not any([smiles, inchi, file_path, iupac_name]):
+        raise ValueError(
+            "No molecule input supplied. Use smiles / inchi / file_path / iupac_name."
+        )
+
+    mol_rec = load_molecule(
+        smiles=smiles, inchi=inchi, file_path=file_path, iupac_name=iupac_name
+    )
+    if name:
+        mol_rec.name = name
+    compound_name = mol_rec.name or "compound"
+    safe = _safe_name(compound_name)
+
+    desc_rec = compute_descriptors(mol_rec.rdkit_mol, mw=mol_rec.mol_weight)
+
+    # ── stdout report ──────────────────────────────────────────────────────
+    print(_banner())
+    _print_section("Molecular Identity", [
+        f"Compound   : {compound_name}",
+        f"Formula    : {mol_rec.formula}",
+        f"MW         : {mol_rec.mol_weight} Da  (average, gravimetric)",
+        f"Exact mass : {mol_rec.exact_mass} Da  (monoisotopic, EI-MS [M]⁺)",
+        f"InChIKey   : {mol_rec.inchikey}",
+        f"SMILES     : {mol_rec.smiles}",
+    ])
+    _print_section("Structural Counts", [
+        f"Total atoms  : {mol_rec.num_atoms}  (incl. H)",
+        f"Heavy atoms  : {mol_rec.num_heavy_atoms}",
+        f"Bonds        : {mol_rec.num_bonds}",
+        f"Rings        : {mol_rec.num_rings}",
+        f"Aromatic     : {mol_rec.is_aromatic}",
+    ])
+    _print_section("Atom Composition", [
+        f"{sym:4s}: {cnt}"
+        for sym, cnt in sorted(mol_rec.atom_counts.items())
+    ])
+    _print_section("Lipinski / Drug-likeness Descriptors", [
+        summarise_descriptors(desc_rec)
+    ])
+
+    if save_image:
+        img_path = os.path.join(output_dir, f"{safe}_2d.png")
+        save_2d_image(mol_rec.rdkit_mol, img_path, title=compound_name)
+        print(f"\n  ✓ 2D image      → {img_path}")
+
+    if export:
+        paths = export_batch(
+            [(mol_rec, desc_rec)],
+            output_dir=output_dir,
+            base_name=safe,
+            formats=export,
+        )
+        for fmt, path in paths.items():
+            print(f"  ✓ {fmt.upper():6s} export → {path}")
+
+    return mol_rec, desc_rec
+
+
+def run_ir(mol_rec: "MoleculeRecord") -> Dict[str, object]:
+    """
+    Predict IR absorption bands via functional-group heuristics.
+
+    Scientific note: APPROXIMATE (±50 cm⁻¹). Not DFT-derived.
+    Returns dict of group label → {'range_cm1': str, 'intensity': str},
+    or {'NOTE': '...'} if the module is absent.
+    """
+    try:
+        from spectra.ir_predictor import predict_ir
+        return predict_ir(mol_rec.rdkit_mol)
+    except Exception as exc:
+        logger.debug("IR predictor unavailable: %s", exc)
+        return {"NOTE": "IR predictor module not available — run Phase 2 setup."}
+
+
+def run_hnmr(mol_rec: "MoleculeRecord") -> Dict[str, object]:
+    """
+    Estimate ¹H NMR shifts using fragment-based heuristic rules.
+
+    Scientific note: APPROXIMATE (±0.5 ppm). Not DFT-derived.
+    """
+    try:
+        from spectra.proton_nmr import predict_proton_nmr
+        return predict_proton_nmr(mol_rec.rdkit_mol)
+    except Exception as exc:
+        logger.debug("¹H NMR predictor unavailable: %s", exc)
+        return {"NOTE": "¹H NMR predictor module not available — run Phase 2 setup."}
+
+
+def run_cnmr(mol_rec: "MoleculeRecord") -> Dict[str, object]:
+    """
+    Estimate ¹³C NMR shifts using fragment-based heuristic rules.
+
+    Scientific note: APPROXIMATE (±5 ppm). Not DFT-derived.
+    """
+    try:
+        from spectra.carbon_nmr import predict_carbon_nmr
+        return predict_carbon_nmr(mol_rec.rdkit_mol)
+    except Exception as exc:
+        logger.debug("¹³C NMR predictor unavailable: %s", exc)
+        return {"NOTE": "¹³C NMR predictor module not available — run Phase 2 setup."}
+
+
+def run_funcgroups(mol_rec: "MoleculeRecord") -> Dict[str, bool]:
+    """Detect functional groups using SMARTS matching from descriptor_utils."""
+    desc_rec = compute_descriptors(mol_rec.rdkit_mol, mw=mol_rec.mol_weight)
+    return {
+        k: v
+        for k, v in vars(desc_rec).items()
+        if isinstance(v, bool) or k.startswith("has_")
+    }
+
+
+def run_batch(
+    batch_file:  str,
+    save_image:  bool = False,
+    export:      Optional[List[str]] = None,
+    output_dir:  str = "output",
+) -> List[Tuple["MoleculeRecord", object]]:
+    """
+    Process a CSV file with columns [name, smiles] through the full pipeline.
+
+    Behaviour
+    ---------
+    - Rows with empty SMILES are skipped with WARNING (fail-soft)
+    - Per-row errors are caught, logged, and collected; batch continues
+    - 'name' column is optional; missing → auto-label 'compound_N'
+
+    Raises
+    ------
+    FileNotFoundError : batch_file does not exist
+    ValueError        : batch_file is empty (header-only or zero bytes)
+    """
+    export = export or []
+    batch_path = Path(batch_file)
+    if not batch_path.exists():
+        raise FileNotFoundError(f"Batch file not found: {batch_file}")
+
+    with batch_path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        rows   = list(reader)
+
+    if not rows:
+        raise ValueError(f"Batch file is empty (no data rows): {batch_file}")
+
+    results: List[Tuple["MoleculeRecord", object]] = []
+    errors:  List[str] = []
+    total = len(rows)
+
+    for i, row in enumerate(rows, start=1):
+        kv     = {k.lower().strip(): v for k, v in row.items()}
+        smiles = kv.get("smiles", "").strip()
+        label  = kv.get("name",   f"compound_{i}").strip() or f"compound_{i}"
+
+        if not smiles:
+            msg = f"Row {i} ({label!r}): empty SMILES — skipped"
+            logger.warning(msg)
+            errors.append(msg)
+            continue
+
+        print(f"\n  ─── [{i}/{total}]  {label} ───")
+        try:
+            mol_rec, desc_rec = run_analyse(
+                smiles=smiles, name=label,
+                save_image=save_image, export=export,
+                output_dir=output_dir,
+            )
+            results.append((mol_rec, desc_rec))
+        except Exception as exc:
+            msg = f"Row {i} ({label!r}): {exc}"
+            logger.error(msg)
+            errors.append(msg)
+
+    if errors:
+        print(f"\n  ⚠  {len(errors)} row(s) failed:")
+        for e in errors:
+            print(f"     • {e}")
+
+    print(
+        f"\n  ✓ Batch finished — "
+        f"{len(results)} succeeded / {len(errors)} failed / {total} total"
+    )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# CLI command handlers
+# ---------------------------------------------------------------------------
+
+def _cmd_analyse(args: argparse.Namespace, settings=None) -> None:
+    try:
+        output_dir = _resolve_output_dir(args.output_dir, settings)
+        run_analyse(
+            smiles=getattr(args, "smiles",    None),
+            inchi=getattr(args,  "inchi",     None),
+            file_path=getattr(args, "file",   None),
+            iupac_name=getattr(args, "iupac", None),
+            name=args.name,
+            save_image=args.save_image,
+            export=args.export or [],
+            output_dir=output_dir,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("analyse: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("analyse — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_batch(args: argparse.Namespace, settings=None) -> None:
+    try:
+        output_dir = _resolve_output_dir(args.output_dir, settings)
+        run_batch(
+            batch_file=args.file,
+            save_image=args.save_image,
+            export=args.export or [],
+            output_dir=output_dir,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        logger.error("batch: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("batch — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_ir(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec = _load_mol(args)
+        print(_banner())
+        result  = run_ir(mol_rec)
+        compound_name = mol_rec.name or "compound"
+        _print_section(
+            f"IR Prediction  ⚠ APPROXIMATE — {compound_name}",
+            ["Heuristic functional-group ranges. Not DFT-derived.  ±50 cm⁻¹.", ""],
+        )
+        if not result:
+            print("  No IR bands predicted (no functional groups detected).")
+            return
+        for fg, info in result.items():
+            if isinstance(info, dict):
+                rng   = info.get("range_cm1", "?")
+                intns = info.get("intensity", "")
+                print(f"  {fg:<34} {str(rng):<22}  {intns}")
+            else:
+                print(f"  {fg}: {info}")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("ir: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("ir — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_hnmr(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec = _load_mol(args)
+        print(_banner())
+        result  = run_hnmr(mol_rec)
+        compound_name = mol_rec.name or "compound"
+        _print_section(
+            f"¹H NMR Prediction  ⚠ APPROXIMATE — {compound_name}",
+            ["Fragment heuristics only. Not DFT-derived.  ±0.5 ppm typical.", ""],
+        )
+        if not result:
+            print("  No proton environments predicted.")
+            return
+        for label, shift in result.items():
+            if isinstance(shift, (int, float)):
+                print(f"  {label:<44}  δ {shift:6.2f} ppm")
+            else:
+                print(f"  {label}: {shift}")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("hnmr: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("hnmr — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_cnmr(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec = _load_mol(args)
+        print(_banner())
+        result  = run_cnmr(mol_rec)
+        compound_name = mol_rec.name or "compound"
+        _print_section(
+            f"¹³C NMR Prediction  ⚠ APPROXIMATE — {compound_name}",
+            ["Fragment heuristics only. Not DFT-derived.  ±5 ppm typical.", ""],
+        )
+        if not result:
+            print("  No carbon environments predicted.")
+            return
+        for label, shift in result.items():
+            if isinstance(shift, (int, float)):
+                print(f"  {label:<44}  δ {shift:6.1f} ppm")
+            else:
+                print(f"  {label}: {shift}")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("cnmr: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("cnmr — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_funcgroups(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec = _load_mol(args)
+        print(_banner())
+        compound_name = mol_rec.name or "compound"
+        fg      = run_funcgroups(mol_rec)
+        present = sorted(k for k, v in fg.items() if v is True)
+        absent  = sorted(k for k, v in fg.items() if v is False)
+        _print_section(
+            f"Functional Groups — {compound_name}",
+            [f"Detected  ({len(present)}):"]
+            + [f"  ✓  {k}" for k in present]
+            + (["", f"Not detected  ({len(absent)}):"] if absent else [])
+            + [f"  ✗  {k}" for k in absent],
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("funcgroups: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("funcgroups — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_image(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec    = _load_mol(args)
+        output_dir = _resolve_output_dir(args.output_dir, settings)
+        os.makedirs(output_dir, exist_ok=True)
+        compound_name = mol_rec.name or "compound"
+        img_path   = os.path.join(output_dir, f"{_safe_name(compound_name)}_2d.png")
+        save_2d_image(mol_rec.rdkit_mol, img_path, title=compound_name)
+        print(f"  ✓ 2D image saved → {img_path}")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("image: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("image — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_export(args: argparse.Namespace, settings=None) -> None:
+    try:
+        mol_rec    = _load_mol(args)
+        desc_rec   = compute_descriptors(mol_rec.rdkit_mol, mw=mol_rec.mol_weight)
+        output_dir = _resolve_output_dir(args.output_dir, settings)
+        os.makedirs(output_dir, exist_ok=True)
+        compound_name = mol_rec.name or "compound"
+        paths = export_batch(
+            [(mol_rec, desc_rec)],
+            output_dir=output_dir,
+            base_name=_safe_name(compound_name),
+            formats=args.formats or ["csv"],
+        )
+        for fmt, path in paths.items():
+            print(f"  ✓ {fmt.upper():6s} → {path}")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.error("export: %s", exc)
+        sys.exit(1)
+    except Exception as exc:
+        logger.exception("export — unexpected error: %s", exc)
+        sys.exit(2)
+
+
+def _cmd_demo(args: argparse.Namespace, settings=None) -> None:
+    output_dir = _resolve_output_dir(getattr(args, "output_dir", "output"), settings)
+    print(_banner())
+    print("\n  === DEMO MODE — Benzene / Aspirin / Caffeine / Ibuprofen ===\n")
+    failed = 0
+    for mol_name, smiles in DEMO_MOLECULES:
+        print(f"\n  {'═' * 62}")
+        print(f"  {mol_name}")
+        print(f"  {'═' * 62}")
+        try:
+            run_analyse(
+                smiles=smiles, name=mol_name,
+                save_image=True, export=["csv"],
+                output_dir=output_dir,
+            )
+        except Exception as exc:
+            logger.error("Demo failed for %s: %s", mol_name, exc)
+            failed += 1
+    total = len(DEMO_MOLECULES)
+    print(
+        f"\n  ✓ Demo complete — "
+        f"{total - failed}/{total} molecules processed successfully."
+    )
+
+
+def _cmd_version(_args: argparse.Namespace, settings=None) -> None:
+    print(_banner())
+    import importlib
+    for label, pkg in [
+        ("Pydantic",   "pydantic"),
+        ("pandas",     "pandas"),
+        ("numpy",      "numpy"),
+        ("matplotlib", "matplotlib"),
+    ]:
+        try:
+            mod = importlib.import_module(pkg)
+            ver = getattr(mod, "__version__", "unknown")
+        except ImportError:
+            ver = "not installed"
+        print(f"  {label:<16}: {ver}")
+    print(f"  {'Python':<16}: {sys.version.split()[0]}")
+    print(f"  {'Platform':<16}: {sys.platform}")
+    flag = lambda ok: "✓" if ok else "✗ not available"
+    print(f"  {'Settings':<16}: {flag(_SETTINGS_AVAILABLE)} core.config")
+    print(f"  {'LoggingUtils':<16}: {flag(_LOGGING_UTILS_AVAILABLE)} core.logging_utils")
+
+
+# ---------------------------------------------------------------------------
+# Parser
+# ---------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(
+        prog="chemistry_companion",
+        description=(
+            "Chemistry Companion — Modular Cheminformatics and Spectroscopy Toolkit\n\n"
+            "Available subcommands:\n"
+            "  analyse     Full single-molecule pipeline\n"
+            "  batch       Batch analysis from CSV\n"
+            "  ir          IR band prediction (heuristic)\n"
+            "  hnmr        ¹H NMR shift estimation (heuristic)\n"
+            "  cnmr        ¹³C NMR shift estimation (heuristic)\n"
+            "  funcgroups  Functional group detection\n"
+            "  image       Export 2D structure PNG\n"
+            "  export      Export descriptors to CSV/JSON/XLSX\n"
+            "  demo        Run built-in demo molecules\n"
+            "  version     Print version info\n\n"
+            "Run 'chemistry_companion <subcommand> --help' for options."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    root.add_argument("--verbose", "-v", action="store_true",
+                      help="Enable DEBUG-level logging output.")
+
+    sub = root.add_subparsers(dest="command", metavar="COMMAND")
+    sub.required = True
+
+    # analyse
+    p_an = sub.add_parser(
+        "analyse",
+        help="Full single-molecule analysis pipeline.",
+        description=(
+            "Parse a molecule and compute formula, MW, exact mass, atom counts,\n"
+            "Lipinski descriptors, and optional 2D image / export.\n\n"
+            "Examples:\n"
+            "  python chemistry_companion.py analyse --smiles 'c1ccccc1'\n"
+            "  python chemistry_companion.py analyse --iupac caffeine --save-image --export csv\n"
+            "  python chemistry_companion.py analyse --file compound.sdf --name MyCompound"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_an)
+    p_an.add_argument("--save-image", action="store_true", help="Save 2D PNG to output dir.")
+    p_an.add_argument("--export", nargs="+", choices=["csv", "xlsx", "json"],
+                      default=[], metavar="FMT",
+                      help="Export formats: csv  xlsx  json  (one or more).")
+    p_an.add_argument("--output-dir", default="output", metavar="DIR")
+    p_an.set_defaults(func=_cmd_analyse)
+
+    # batch
+    p_ba = sub.add_parser(
+        "batch",
+        help="Batch analysis from a CSV file (columns: name, smiles).",
+        description=(
+            "Process multiple molecules from a CSV file.\n"
+            "Required column : smiles  (case-insensitive)\n"
+            "Optional column : name\n\n"
+            "Rows with empty SMILES are skipped. Per-row errors are logged\n"
+            "and the batch continues (fail-soft).\n\n"
+            "Examples:\n"
+            "  python chemistry_companion.py batch --file compounds.csv\n"
+            "  python chemistry_companion.py batch --file compounds.csv --export csv xlsx"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_ba.add_argument("--file", required=True, metavar="CSV_PATH",
+                      help="Path to input CSV file.")
+    p_ba.add_argument("--save-image", action="store_true")
+    p_ba.add_argument("--export", nargs="+", choices=["csv", "xlsx", "json"],
+                      default=[], metavar="FMT")
+    p_ba.add_argument("--output-dir", default="output", metavar="DIR")
+    p_ba.set_defaults(func=_cmd_batch)
+
+    # ir
+    p_ir = sub.add_parser(
+        "ir",
+        help="Predict IR absorption bands (functional-group heuristics).",
+        description=(
+            "Predict characteristic IR absorption bands from SMARTS-detected\n"
+            "functional groups.  Output is APPROXIMATE (±50 cm⁻¹). Not DFT.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py ir --smiles 'CC(=O)Oc1ccccc1C(=O)O'"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_ir)
+    p_ir.set_defaults(func=_cmd_ir)
+
+    # hnmr
+    p_hn = sub.add_parser(
+        "hnmr",
+        help="Estimate ¹H NMR chemical shifts (heuristic, approximate).",
+        description=(
+            "Estimate ¹H NMR chemical shifts using fragment-based heuristic rules.\n"
+            "Values are APPROXIMATE (±0.5 ppm typical). Not DFT.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py hnmr --smiles 'Cc1ccccc1'"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_hn)
+    p_hn.set_defaults(func=_cmd_hnmr)
+
+    # cnmr
+    p_cn = sub.add_parser(
+        "cnmr",
+        help="Estimate ¹³C NMR chemical shifts (heuristic, approximate).",
+        description=(
+            "Estimate ¹³C NMR chemical shifts using fragment-based heuristic rules.\n"
+            "Values are APPROXIMATE (±5 ppm typical). Not DFT.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py cnmr --iupac toluene"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_cn)
+    p_cn.set_defaults(func=_cmd_cnmr)
+
+    # funcgroups
+    p_fg = sub.add_parser(
+        "funcgroups",
+        help="Detect functional groups via SMARTS matching.",
+        description=(
+            "Detect presence/absence of functional groups using SMARTS patterns\n"
+            "from core.descriptor_utils.  Reports all 22 built-in groups.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py funcgroups --smiles 'CC(=O)Oc1ccccc1C(=O)O'"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_fg)
+    p_fg.set_defaults(func=_cmd_funcgroups)
+
+    # image
+    p_im = sub.add_parser(
+        "image",
+        help="Export a 2D structure image as PNG.",
+        description=(
+            "Generate and save a 2D structure PNG via RDKit MolDraw2DCairo.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py image --smiles 'c1ccccc1' --output-dir output/"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_im)
+    p_im.add_argument("--output-dir", default="output", metavar="DIR")
+    p_im.set_defaults(func=_cmd_image)
+
+    # export
+    p_ex = sub.add_parser(
+        "export",
+        help="Export molecular descriptors to CSV, JSON, or XLSX.",
+        description=(
+            "Compute all descriptors and export to one or more file formats.\n\n"
+            "Examples:\n"
+            "  python chemistry_companion.py export --smiles 'c1ccccc1' --formats csv json\n"
+            "  python chemistry_companion.py export --iupac aspirin --formats csv xlsx json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_molecule_args(p_ex)
+    p_ex.add_argument("--formats", nargs="+", choices=["csv", "xlsx", "json"],
+                      default=["csv"], metavar="FMT",
+                      help="One or more export formats (default: csv).")
+    p_ex.add_argument("--output-dir", default="output", metavar="DIR")
+    p_ex.set_defaults(func=_cmd_export)
+
+    # demo
+    p_dm = sub.add_parser(
+        "demo",
+        help="Run built-in demo (Benzene, Aspirin, Caffeine, Ibuprofen).",
+        description=(
+            "Run the full analysis pipeline on four built-in demo molecules\n"
+            "and save 2D images + CSV exports to the output directory.\n\n"
+            "Example:\n"
+            "  python chemistry_companion.py demo --output-dir demo_output/"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_dm.add_argument("--output-dir", default="output", metavar="DIR")
+    p_dm.set_defaults(func=_cmd_demo)
+
+    # version
+    p_vr = sub.add_parser(
+        "version",
+        help="Print version and dependency info.",
+        description="Print Chemistry Companion version and all dependency versions.",
+    )
+    p_vr.set_defaults(func=_cmd_version)
+
+    return root
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    """
+    CLI entry point.
+
+    Execution order
+    ---------------
+    1. Parse arguments (argparse)
+    2. Bootstrap settings + logging ONCE via _prepare_runtime()
+    3. Dispatch to the appropriate _cmd_*() handler, passing settings
+    """
+    parser   = build_parser()
+    args     = parser.parse_args()
+    settings = _prepare_runtime(verbose=getattr(args, "verbose", False))
+
+    if hasattr(args, "func"):
+        args.func(args, settings)
+    else:
+        parser.print_help()
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

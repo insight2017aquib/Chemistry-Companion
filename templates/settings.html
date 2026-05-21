@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Settings — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-8"><h1 class="text-2xl font-bold text-[var(--cc-text)]">Settings</h1></header>
+<div class="cc-card p-6 max-w-xl space-y-6" x-data="{ theme: localStorage.getItem('cc-theme') || 'dark' }">
+    <div>
+        <label class="cc-metric-label block mb-2">Theme</label>
+        <select class="cc-input" x-model="theme" @change="localStorage.setItem('cc-theme', theme); document.documentElement.classList.toggle('dark', theme==='dark'); document.documentElement.classList.toggle('light', theme==='light');">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+        </select>
+    </div>
+    <div>
+        <label class="cc-metric-label block mb-2">Default export profile</label>
+        <select class="cc-input" id="default-export-profile">
+            <option value="full">Full Report</option>
+            <option value="medchem">Medicinal Chemistry</option>
+            <option value="spectroscopy">Spectroscopy</option>
+        </select>
+    </div>
+    <div>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked class="rounded text-indigo-500"> Include spectra by default</label>
+    </div>
+</div>
+{% endblock %}

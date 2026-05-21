@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Validation Dashboard — Chemistry Companion{% endblock %}
+{% block content %}
+<header class="mb-6">
+    <h1 class="text-2xl font-bold">Spectra Validation Dashboard</h1>
+    <p class="text-sm text-secondary">Analysis of heuristic predictions versus perturbed experimental references.</p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">Mean Error Overview (MAE & RMSE)</h2>
+        <div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/spectra/publication_plots/01_mae_rmse_overview.svg" alt="MAE RMSE Overview" class="max-w-full max-h-full object-contain">
+        </div>
+        <p class="text-sm text-slate-500 mt-4 text-center">Absolute error magnitudes for the predicted IR, ¹H NMR, and ¹³C NMR spectra.</p>
+    </div>
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">Coverage Radar</h2>
+        <div class="aspect-video bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/spectra/publication_plots/08_coverage_radar.svg" alt="Coverage Radar" class="max-w-full max-h-full object-contain">
+        </div>
+        <p class="text-sm text-slate-500 mt-4 text-center">Heuristic vs Experimental coverage map.</p>
+    </div>
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">IR Peak Correlation</h2>
+        <div class="aspect-square bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/spectra/publication_plots/03_ir_scatter.svg" alt="IR Scatter" class="max-w-full max-h-full object-contain">
+        </div>
+    </div>
+    <div class="card p-6">
+        <h2 class="font-bold text-lg mb-4 text-center">Error Distributions</h2>
+        <div class="aspect-square bg-slate-50 dark:bg-slate-800 rounded flex items-center justify-center p-2">
+            <img src="/outputs/spectra/publication_plots/06_error_distributions.svg" alt="Error KDE" class="max-w-full max-h-full object-contain">
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+compound_id,name,smiles,formula,mw,functional_groups,known_descriptor_values
+CMPD001,Benzene,c1ccccc1,C6H6,78.1140,aromatic,logP:1.69;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD002,Toluene,Cc1ccccc1,C7H8,92.1410,aromatic,logP:2.00;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD003,Nitrobenzene,O=[N+]([O-])c1ccccc1,C6H5NO2,123.1110,aromatic; nitro,logP:1.59;TPSA:43.1;HBD:0;HBA:2;RotB:1;Rings:1
+CMPD004,Chlorobenzene,Clc1ccccc1,C6H5Cl,112.5590,aromatic; halogen,logP:2.34;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD005,Bromobenzene,Brc1ccccc1,C6H5Br,157.0100,aromatic; halogen,logP:2.45;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD006,Fluorobenzene,Fc1ccccc1,C6H5F,96.1040,aromatic; halogen,logP:1.83;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD007,Iodobenzene,Ic1ccccc1,C6H5I,204.0100,aromatic; halogen,logP:2.29;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:1
+CMPD008,Anisole,COc1ccccc1,C7H8O,108.1400,aromatic; ether,logP:1.70;TPSA:9.2;HBD:0;HBA:1;RotB:1;Rings:1
+CMPD009,Ethyl acetate,CCOC(=O)C,C4H8O2,88.1060,ester,logP:0.57;TPSA:26.3;HBD:0;HBA:2;RotB:1;Rings:0
+CMPD010,Methyl benzoate,COC(=O)c1ccccc1,C8H8O2,136.1500,ester; aromatic,logP:1.47;TPSA:26.3;HBD:0;HBA:2;RotB:1;Rings:1
+CMPD011,Acetamide,CC(=O)N,C2H5NO,59.0680,amide,logP:-0.51;TPSA:43.1;HBD:1;HBA:1;RotB:0;Rings:0
+CMPD012,Benzamide,O=C(N)c1ccccc1,C7H7NO,121.1390,amide; aromatic,logP:0.79;TPSA:43.1;HBD:1;HBA:1;RotB:1;Rings:1
+CMPD013,Pyridine,c1ccncc1,C5H5N,79.1020,heterocycle; aromatic,logP:1.08;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD014,Pyrrole,C1=CC=CN1,C4H5N,67.0910,heterocycle; aromatic,logP:1.01;TPSA:15.8;HBD:1;HBA:0;RotB:0;Rings:1
+CMPD015,Furan,c1ccoc1,C4H4O,68.0750,heterocycle; aromatic,logP:1.28;TPSA:13.1;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD016,Thiophene,c1ccsc1,C4H4S,84.1430,heterocycle; aromatic,logP:1.75;TPSA:0.0;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD017,Indole,C1=CC=C2C(=C1)C=CN2,C8H7N,117.1510,heterocycle; fused aromatic,logP:2.17;TPSA:15.8;HBD:1;HBA:0;RotB:0;Rings:2
+CMPD018,Quinoline,c1ccc2ncccc2c1,C9H7N,129.1620,heterocycle; fused aromatic,logP:2.23;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:2
+CMPD019,Imidazole,C1=CN=CN1,C3H4N2,68.0790,heterocycle; aromatic,logP:0.41;TPSA:28.7;HBD:1;HBA:1;RotB:0;Rings:1
+CMPD020,Pyrimidine,c1cncnc1,C4H4N2,80.0900,heterocycle; aromatic,logP:0.48;TPSA:25.8;HBD:0;HBA:2;RotB:0;Rings:1
+CMPD021,Purine,C1=NC2=C(N1)N=CN2,C4H4N4,108.1040,heterocycle; fused aromatic,logP:0.29;TPSA:57.4;HBD:2;HBA:2;RotB:0;Rings:2
+CMPD022,Benzoxazole,c1cc2ncoc2cc1,C7H5NO,119.1230,heterocycle; fused aromatic,logP:1.83;TPSA:26.0;HBD:0;HBA:2;RotB:0;Rings:2
+CMPD023,Quinoxaline,c1cc2nc3ccccc3n2cc1,C11H8N2,168.1990,heterocycle; fused aromatic,logP:2.49;TPSA:17.3;HBD:0;HBA:1;RotB:0;Rings:3
+CMPD024,Ethanol,CCO,C2H6O,46.0690,alcohol,logP:-0.00;TPSA:20.2;HBD:1;HBA:1;RotB:0;Rings:0
+CMPD025,Ethyl methyl ether,CCOC,C3H8O,60.0960,ether,logP:0.65;TPSA:9.2;HBD:0;HBA:1;RotB:1;Rings:0
+CMPD026,Diethyl ether,CCOCC,C4H10O,74.1230,ether,logP:1.04;TPSA:9.2;HBD:0;HBA:1;RotB:2;Rings:0
+CMPD027,Methyl tert-butyl ether,CC(C)(C)OC,C5H12O,88.1500,ether,logP:1.43;TPSA:9.2;HBD:0;HBA:1;RotB:0;Rings:0
+CMPD028,Aspirin,CC(=O)Oc1ccccc1C(=O)O,C9H8O4,180.1590,ester; carboxylic_acid; aromatic,logP:1.31;TPSA:63.6;HBD:1;HBA:3;RotB:2;Rings:1
+CMPD029,Benzyl acetate,CC(=O)OCC1=CC=CC=C1,C9H10O2,150.1770,ester; aromatic,logP:1.75;TPSA:26.3;HBD:0;HBA:2;RotB:2;Rings:1
+CMPD030,N-Methylacetamide,CC(=O)NC,C3H7NO,73.0950,amide,logP:-0.25;TPSA:29.1;HBD:1;HBA:1;RotB:0;Rings:0
+CMPD031,Nicotinamide,NC(=O)c1ccncc1,C6H6N2O,122.1270,amide; heterocycle; aromatic,logP:0.18;TPSA:56.0;HBD:1;HBA:2;RotB:1;Rings:1
+CMPD032,Phenol,c1ccccc1O,C6H6O,94.1130,aromatic; alcohol,logP:1.39;TPSA:20.2;HBD:1;HBA:1;RotB:0;Rings:1
+CMPD033,Aniline,c1ccccc1N,C6H7N,93.1290,aromatic; amine,logP:1.27;TPSA:26.0;HBD:1;HBA:1;RotB:0;Rings:1
+CMPD034,Nitropropane,CCC[N+](=O)[O-],C3H7NO2,89.0940,nitro,logP:0.67;TPSA:43.1;HBD:0;HBA:2;RotB:2;Rings:0
+CMPD035,2-Chloropyridine,Clc1ccccn1,C5H4ClN,113.5470,heterocycle; halogen,logP:1.73;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD036,4-Nitrophenol,O=[N+]([O-])c1ccc(O)cc1,C6H5NO3,139.1100,aromatic; nitro; alcohol,logP:1.30;TPSA:63.4;HBD:1;HBA:3;RotB:1;Rings:1
+CMPD037,2-Chloroethylamine,ClCCN,C2H6ClN,79.5300,halogen; amine,logP:0.18;TPSA:26.0;HBD:1;HBA:1;RotB:1;Rings:0
+CMPD038,2-Bromoethanol,OCCBr,C2H5BrO,124.9650,halogen; alcohol,logP:0.37;TPSA:20.2;HBD:1;HBA:1;RotB:1;Rings:0
+CMPD039,4-Chloroanisole,Clc1ccc(OC)cc1,C7H7ClO,142.5850,aromatic; ether; halogen,logP:2.35;TPSA:9.2;HBD:0;HBA:1;RotB:1;Rings:1
+CMPD040,"1,4-Dioxane",C1COCCO1,C4H8O2,88.1060,ether; heterocycle,logP:0.03;TPSA:18.5;HBD:0;HBA:2;RotB:0;Rings:1
+CMPD041,"1,3,5-Triazine",c1ncncn1,C3H3N3,81.0780,heterocycle; aromatic,logP:-0.13;TPSA:38.7;HBD:0;HBA:3;RotB:0;Rings:1
+CMPD042,Benzimidazole,c1ccc2[nH]cnc2c1,C7H6N2,118.1390,heterocycle; fused aromatic,logP:1.56;TPSA:28.7;HBD:1;HBA:1;RotB:0;Rings:2
+CMPD043,Coumarin,O=C1OC2=CC=CC=C2C=CC1,C10H8O2,160.1720,lactone; aromatic; fused aromatic,logP:2.01;TPSA:26.3;HBD:0;HBA:2;RotB:0;Rings:2
+CMPD044,Naphthalene,c1cccc2ccccc12,C10H8,128.1740,aromatic; fused aromatic,logP:2.84;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:2
+CMPD045,Phenanthrene,c1cc2cc3ccccc3cc2cc1,C14H10,178.2340,aromatic; fused aromatic,logP:3.99;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:3
+CMPD046,Indene,c1ccc2c(c1)CC=C2,C9H8,116.1630,aromatic; fused aromatic,logP:2.26;TPSA:0.0;HBD:0;HBA:0;RotB:0;Rings:2
+CMPD047,Quinazoline,c1cnc2ccnc2cc1,C8H6N2,130.1500,heterocycle; fused aromatic,logP:1.58;TPSA:25.8;HBD:0;HBA:2;RotB:0;Rings:2
+CMPD048,Isoquinoline,C1=CC2=CC=NC=C2C=C1,C9H7N,129.1620,heterocycle; fused aromatic,logP:2.23;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:2
+CMPD049,"1,4-Dimethoxybenzene",COc1ccc(OC)cc1,C8H10O2,138.1660,aromatic; ether,logP:1.70;TPSA:18.5;HBD:0;HBA:2;RotB:2;Rings:1
+CMPD050,Cyclohexanone,O=C1CCCCC1,C6H10O,98.1450,ketone,logP:1.52;TPSA:17.1;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD051,"2,4,6-Trinitrotoluene",CC1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-],C7H5N3O6,227.1320,aromatic; nitro,logP:1.72;TPSA:129.4;HBD:0;HBA:6;RotB:3;Rings:1
+CMPD052,4-Vinylpyridine,C=CC1=CC=NC=C1,C7H7N,105.1400,heterocycle; aromatic,logP:1.72;TPSA:12.9;HBD:0;HBA:1;RotB:1;Rings:1
+CMPD053,2-Methylfuran,Cc1ccoc1,C5H6O,82.1020,heterocycle; aromatic,logP:1.59;TPSA:13.1;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD054,2-Bromopyridine,Brc1ccccn1,C5H4BrN,157.9980,heterocycle; halogen,logP:1.84;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD055,"2,6-Dichloropyridine",Clc1cccc(Cl)n1,C5H3Cl2N,147.9920,heterocycle; halogen,logP:2.39;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD056,4-Aminobenzoic acid,NC1=CC=C(C=C1)C(=O)O,C7H7NO2,137.1380,aromatic; acid; amine,logP:0.97;TPSA:63.3;HBD:2;HBA:2;RotB:1;Rings:1
+CMPD057,Ethyl 4-nitrobenzoate,O=[N+]([O-])c1ccc(cc1)C(=O)OCC,C9H9NO4,195.1740,ester; nitro; aromatic,logP:1.77;TPSA:69.4;HBD:0;HBA:4;RotB:3;Rings:1
+CMPD058,"N,N-Dimethylacetamide",CN(C)C=O,C3H7NO,73.0950,amide,logP:-0.30;TPSA:20.3;HBD:0;HBA:1;RotB:1;Rings:0
+CMPD059,4-Methoxybenzoic acid,COc1ccc(cc1)C(=O)O,C8H8O3,152.1490,acid; aromatic; ether,logP:1.39;TPSA:46.5;HBD:1;HBA:2;RotB:2;Rings:1
+CMPD060,2-Methylpyridine,Cc1ccccn1,C6H7N,93.1290,heterocycle; aromatic,logP:1.39;TPSA:12.9;HBD:0;HBA:1;RotB:0;Rings:1
+CMPD061,"3,4-Dimethoxybenzaldehyde",COc1ccc(OC)c(C=O)c1,C9H10O3,166.1760,aromatic; aldehyde; ether,logP:1.52;TPSA:35.5;HBD:0;HBA:3;RotB:3;Rings:1

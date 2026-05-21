@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Belal"
+  given-names: "Aquib"
+title: "Chemistry Companion: An Integrated Toolkit for Molecular Analysis and Spectral Prediction"
+version: 1.0.0
+date-released: 2026-05-20
+url: "https://github.com/aquibbelal/chemistry-companion"
+repository-code: "https://github.com/aquibbelal/chemistry-companion"
+license: MIT
+keywords:
+  - cheminformatics
+  - rdkit
+  - openbabel
+  - nmr-prediction
+  - docking
+  - molecular-descriptors
