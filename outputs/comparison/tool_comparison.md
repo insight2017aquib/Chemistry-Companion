@@ -6,9 +6,9 @@ Comparing **Chemistry Companion**, **RDKit**, and **Open Babel**.
 
 | Tool                |   Speed (mols/sec) |   Descriptors (Native) |   Functional Group Classes |
 |:--------------------|-------------------:|-----------------------:|---------------------------:|
-| Chemistry Companion |              250   |                     14 |                         27 |
-| RDKit               |              140.8 |                    217 |                         85 |
-| Open Babel          |              221.3 |                     24 |                          0 |
+| Chemistry Companion |              465.6 |                     14 |                         27 |
+| RDKit               |              186.3 |                    217 |                         85 |
+| Open Babel          |              643.3 |                     24 |                          0 |
 
 ## Qualitative Feature Matrix
 

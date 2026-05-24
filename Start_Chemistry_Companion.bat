@@ -120,41 +120,38 @@ goto STARTSERVER
 
 cls
 
-echo ===========================================
+echo ==========================================
 echo Starting Chemistry Companion Backend
-echo ===========================================
+echo ==========================================
 echo.
 
-REM Start backend FIRST
-
-start "ChemistryBackend" cmd /k ^
+start "ChemistryBackend" cmd /c ^
 python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
 
+echo.
 echo Waiting for backend...
 
-timeout /t 5 >nul
-
-REM Probe backend
+:WAITLOOP
 
 powershell -Command ^
-"try {Invoke-WebRequest http://127.0.0.1:8000 -TimeoutSec 2 > $null; exit 0} catch {exit 1}"
+"try {Invoke-WebRequest http://127.0.0.1:8000 -UseBasicParsing -TimeoutSec 2 > $null; exit 0} catch {exit 1}"
 
 if errorlevel 1 (
 
-echo Backend not ready.
-echo Waiting more...
+timeout /t 2 >nul
 
-timeout /t 5 >nul
+goto WAITLOOP
 
 )
 
-echo Backend ready.
+echo.
+echo Backend detected.
 
-echo Launching browser...
+echo Opening Chemistry Companion...
 
 start "" http://127.0.0.1:8000
 
 echo.
-echo Chemistry Companion started.
+echo Chemistry Companion ready.
 
 exit

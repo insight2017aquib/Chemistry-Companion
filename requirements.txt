@@ -8,7 +8,25 @@ seaborn>=0.12.2
 jupyter>=1.0.0
 nbformat>=5.9.0
 tabulate>=0.9.0
+python-dotenv>=1.0.0
 
+# New dependencies for Advanced Docking + LLM features
+vina>=1.2.5
+meeko>=0.5.0
+py3Dmol>=2.1.0
+python-dotenv>=1.0.0
+requests>=2.31.0
 
-# Plotting/Visualization
-seaborn>=0.12.0
+# Web server and framework dependencies
+fastapi>=0.100.0
+uvicorn>=0.22.0
+Jinja2>=3.1.2
+python-multipart>=0.0.6
+SQLAlchemy>=2.0.0
+aiosqlite>=0.19.0
+pydantic-settings>=2.0.0
+pydantic>=2.0.0
+pubchempy>=1.0.4
+gemmi>=0.7.0
+scipy>=1.9.0
+colorama>=0.4.6

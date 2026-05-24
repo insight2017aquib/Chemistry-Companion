@@ -24,4 +24,5 @@ validation/results/
 
 *.pdbqt
 
-*.egg-info/
+*.egg-info/.env
+.env.local

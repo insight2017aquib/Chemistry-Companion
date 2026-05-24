@@ -44,6 +44,8 @@ async def generate_docking(
         return {
             "success": True,
             "job_id": job_id,
+            "pdbqt": pdbqt_content,
+            "pdbqt_content": pdbqt_content,
             "download_url": f"/outputs/docking/{filename}",
             "status": "completed"
         }
