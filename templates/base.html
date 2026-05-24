@@ -35,6 +35,8 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"></script>
 
     <style>
         [x-cloak] { display: none !important; }
@@ -90,6 +92,9 @@
                 ('/history', 'History', '◷', '/history' in request.url.path),
                 ('/validation', 'Validation', '✓', '/validation' in request.url.path),
                 ('/benchmarks', 'Benchmarks', '📊', '/benchmarks' in request.url.path),
+                ('/visualization', 'Visualization', '🔬', '/visualization' in request.url.path),
+                ('/docking-workspace', 'Docking Workspace', '🧬', '/docking-workspace' in request.url.path),
+                ('/pose-analysis', 'Pose Analysis', '🎯', '/pose-analysis' in request.url.path),
                 ('/settings', 'Settings', '⚙', '/settings' in request.url.path),
                 ('/docs', 'Documentation', '?', '/docs' in request.url.path),
             ] %}

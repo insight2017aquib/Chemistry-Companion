@@ -1,0 +1,386 @@
+{% extends "base.html" %}
+{% block title %}Visualization — Chemistry Companion{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="visualizationWorkspace()">
+    <header class="mb-4 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Visualization Workspace</h1>
+            <p class="text-slate-500 mt-2">Interactive 2D and 3D viewing of proteins, ligands, and complexes.</p>
+        </div>
+    </header>
+
+    <div x-show="proteinError || ligandError || overlayError" x-cloak class="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <div x-show="proteinError" x-text="proteinError"></div>
+        <div x-show="ligandError" x-text="ligandError"></div>
+        <div x-show="overlayError" x-text="overlayError"></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Protein Viewer -->
+        <div class="card p-6 flex flex-col h-full border border-border">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="text-primary">🧬</span> Protein Viewer
+            </h2>
+            <form @submit.prevent="loadProtein" class="mb-4">
+                <div class="flex gap-2">
+                    <input type="file" x-ref="proteinFile" accept=".pdb,.pdbqt" required
+                           class="flex-1 block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+                    <button type="submit" class="btn-primary whitespace-nowrap" :disabled="loadingProtein">
+                        <span x-show="!loadingProtein">Load</span>
+                        <span x-show="loadingProtein" class="animate-pulse">Loading...</span>
+                    </button>
+                </div>
+            </form>
+            <div x-show="proteinError" x-cloak class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="proteinError"></div>
+            
+            <div class="flex-1 bg-slate-50 dark:bg-slate-800 rounded border border-border relative overflow-hidden min-h-[400px]">
+                <div x-show="!proteinData" class="absolute inset-0 flex items-center justify-center text-slate-400">
+                    Upload a PDB file to visualize.
+                </div>
+                <div x-show="proteinData" class="absolute inset-0 p-4 overflow-auto">
+                    <div class="mb-4 text-xs font-mono bg-white dark:bg-slate-900 p-2 rounded shadow-sm border border-border">
+                        <div><strong>Source:</strong> <span x-text="proteinData?.pdb_id"></span></div>
+                        <div><strong>Chains:</strong> <span x-text="proteinData?.num_chains"></span> | <strong>Residues:</strong> <span x-text="proteinData?.num_residues"></span></div>
+                        <div x-show="proteinData?.has_ligands"><strong>Ligands:</strong> <span x-text="proteinData?.ligand_names?.join(', ')"></span></div>
+                    </div>
+                    <!-- Real 3D Protein Viewer Area -->
+                    <div id="protein-3d-viewer" class="w-full h-[300px] rounded border border-border bg-white" style="position: relative;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ligand Viewer -->
+        <div class="card p-6 flex flex-col h-full border border-border">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <span class="text-emerald-500">⬡</span> Ligand Viewer
+            </h2>
+            <form @submit.prevent="loadLigand" class="mb-4">
+                <div class="flex gap-2">
+                    <input type="text" x-model="ligandSmiles" placeholder="Enter SMILES (e.g. CC(=O)Oc1ccccc1C(=O)O)" required
+                           class="flex-1 border border-border rounded p-2 text-sm bg-bg">
+                    <button type="submit" class="btn-primary whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 border-emerald-600" :disabled="loadingLigand">
+                        <span x-show="!loadingLigand">Render</span>
+                        <span x-show="loadingLigand" class="animate-pulse">Rendering...</span>
+                    </button>
+                </div>
+            </form>
+            <div x-show="ligandError" x-cloak class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="ligandError"></div>
+            
+            <div class="flex-1 grid grid-rows-2 gap-4">
+                <div class="bg-white dark:bg-slate-800 rounded border border-border relative flex items-center justify-center min-h-[190px]">
+                    <div x-show="!ligandSvg" class="text-slate-400">2D Structure</div>
+                    <div x-show="ligandSvg" x-html="ligandSvg" class="w-full h-full p-2 flex justify-center items-center"></div>
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-800 rounded border border-border relative flex items-center justify-center min-h-[190px] overflow-hidden">
+                    <div x-show="!ligandHtml3d" class="text-slate-400">3D Structure</div>
+                    <div x-show="ligandHtml3d" id="ligand-3d-viewer" class="w-full h-full min-h-[190px]" style="position: relative;"></div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Overlay Complex Viewer -->
+    <div class="card p-6 border border-border">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+                <span class="text-indigo-500">🎯</span> Overlay Complex
+            </h2>
+            <button @click="generateOverlay" class="btn-primary bg-indigo-600 hover:bg-indigo-700 border-indigo-600" :disabled="loadingOverlay || !proteinData || (!ligandPdbqt && !ligandMolBlock)">
+                <span x-show="!loadingOverlay">Overlay Protein & Ligand</span>
+                <span x-show="loadingOverlay" class="animate-pulse">Overlaying...</span>
+            </button>
+        </div>
+        <div x-show="overlayError" x-cloak class="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="overlayError"></div>
+        
+        <div class="w-full bg-slate-50 dark:bg-slate-800 rounded border border-border relative min-h-[500px]">
+            <div x-show="!overlayHtml" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                <span class="text-3xl mb-2">🔭</span>
+                <span>Load a Protein and Render a Ligand to view them overlaid.</span>
+            </div>
+            <div x-show="overlayHtml" class="absolute inset-0">
+                <div id="complex-3d-viewer" class="w-full h-full" style="position: relative;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('visualizationWorkspace', () => ({
+        proteinData: null,
+        loadingProtein: false,
+        proteinError: '',
+        
+        ligandSmiles: '',
+        ligandSvg: '',
+        ligandHtml3d: '',
+        ligandMolBlock: '',
+        ligandPdbqt: '',
+        loadingLigand: false,
+        ligandError: '',
+        
+        overlayHtml: '',
+        loadingOverlay: false,
+        overlayError: '',
+
+        async apiError(response, fallback) {
+            try {
+                const data = await response.clone().json();
+                if (data.detail) return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                if (data.error) return data.error;
+                if (data.message) return data.message;
+            } catch (e) {
+                try {
+                    const text = await response.text();
+                    if (text) return text;
+                } catch (ignore) {}
+            }
+            return `${fallback} (HTTP ${response.status})`;
+        },
+
+        async ensure3Dmol() {
+            if (window.$3Dmol) return window.$3Dmol;
+
+            if (!window.__threeDmolPromise) {
+                window.__threeDmolPromise = (async () => {
+                    const sources = [
+                        'https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js',
+                        'https://cdn.jsdelivr.net/npm/3dmol@2.0.4/build/3Dmol-min.js'
+                    ];
+
+                    for (const src of sources) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const existing = document.querySelector(`script[src="${src}"]`);
+                                if (existing && window.$3Dmol) {
+                                    resolve();
+                                    return;
+                                }
+
+                                if (existing) {
+                                    existing.remove();
+                                }
+
+                                const script = document.createElement('script');
+                                script.src = src;
+                                script.onload = resolve;
+                                script.onerror = reject;
+                                document.head.appendChild(script);
+                            });
+
+                            if (window.$3Dmol) return window.$3Dmol;
+                        } catch (e) {
+                            // Try the next CDN source.
+                        }
+                    }
+
+                    throw new Error('3Dmol.js could not be loaded.');
+                })();
+            }
+
+            try {
+                return await window.__threeDmolPromise;
+            } catch (e) {
+                window.__threeDmolPromise = null;
+                throw e;
+            }
+        },
+
+        showViewerMessage(element, message, isError = false) {
+            element.innerHTML = '';
+            const messageEl = document.createElement('div');
+            messageEl.className = `absolute inset-0 flex items-center justify-center p-4 text-center ${isError ? 'text-red-600' : 'text-slate-400'}`;
+            messageEl.textContent = message;
+            element.appendChild(messageEl);
+        },
+
+        async render3DModels(elementId, models, viewerName, emptyMessage) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            element.innerHTML = '';
+            const validModels = models.filter(model => model.data && model.data.trim());
+            if (!validModels.length) {
+                this.showViewerMessage(element, emptyMessage || 'No structure data available.');
+                return;
+            }
+
+            try {
+                await this.ensure3Dmol();
+
+                const viewer = window.$3Dmol.createViewer(element, {
+                    backgroundColor: 'white'
+                });
+
+                validModels.forEach((model, index) => {
+                    viewer.addModel(model.data, model.format || 'pdb');
+                    viewer.setStyle({model: index}, model.style || {stick: {}});
+                });
+
+                viewer.zoomTo();
+                viewer.render();
+                if (viewer.resize) viewer.resize();
+                window[viewerName] = viewer;
+            } catch (e) {
+                this.showViewerMessage(element, e.message, true);
+            }
+        },
+        
+        async loadProtein() {
+            const file = this.$refs.proteinFile.files[0];
+            if (!file) return;
+            this.loadingProtein = true;
+            this.proteinError = '';
+            this.overlayError = '';
+            this.proteinData = null;
+            this.overlayHtml = '';
+            const fd = new FormData();
+            fd.append('file', file);
+            
+            try {
+                const res = await fetch('/api/visualization/protein', { method: 'POST', body: fd });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Protein visualization failed'));
+                this.proteinData = await res.json();
+                this.overlayHtml = '';
+                
+                this.$nextTick(() => {
+                    const format = this.proteinData.structure_format || (file.name.toLowerCase().endsWith('.pdbqt') ? 'pdbqt' : 'pdb');
+                    const proteinStyle = format === 'pdbqt'
+                        ? {stick: {radius: 0.12, colorscheme: 'spectrum'}}
+                        : {cartoon: {color: 'spectrum'}};
+
+                    this.render3DModels(
+                        'protein-3d-viewer',
+                        [{
+                            data: this.proteinData.pdb_content,
+                            format,
+                            style: proteinStyle
+                        }],
+                        '__proteinViewer',
+                        'Protein structure data is empty.'
+                    );
+                });
+            } catch(e) {
+                this.proteinError = `Error loading protein: ${e.message}`;
+                const element = document.getElementById('protein-3d-viewer');
+                if (element) this.showViewerMessage(element, e.message, true);
+            } finally {
+                this.loadingProtein = false;
+            }
+        },
+        
+        async loadLigand() {
+            if(!this.ligandSmiles) return;
+            this.loadingLigand = true;
+            this.ligandError = '';
+            this.overlayError = '';
+            this.ligandSvg = '';
+            this.ligandHtml3d = '';
+            this.ligandMolBlock = '';
+            this.ligandPdbqt = '';
+            this.overlayHtml = '';
+            try {
+                const [res2d, res3d] = await Promise.all([
+                    fetch('/api/visualization/ligand2d', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({smiles: this.ligandSmiles})
+                    }),
+                    fetch('/api/visualization/ligand3d', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({smiles: this.ligandSmiles})
+                    })
+                ]);
+                
+                if(!res2d.ok) throw new Error(await this.apiError(res2d, '2D ligand generation failed'));
+                if(!res3d.ok) throw new Error(await this.apiError(res3d, '3D ligand generation failed'));
+                
+                const data2d = await res2d.json();
+                const data3d = await res3d.json();
+                
+                this.ligandSvg = data2d.svg;
+                this.ligandHtml3d = data3d.html || data3d.mol_block || data3d.pdbqt;
+                this.ligandMolBlock = data3d.mol_block || '';
+                this.ligandPdbqt = data3d.pdbqt || '';
+                this.overlayHtml = '';
+
+                this.$nextTick(() => {
+                    const ligandData = this.ligandMolBlock || this.ligandPdbqt;
+                    const ligandFormat = this.ligandMolBlock ? 'mol' : 'pdbqt';
+                    this.render3DModels(
+                        'ligand-3d-viewer',
+                        [{
+                            data: ligandData,
+                            format: ligandFormat,
+                            style: {stick: {colorscheme: 'greenCarbon'}}
+                        }],
+                        '__ligandViewer',
+                        'Ligand 3D structure data is empty.'
+                    );
+                });
+            } catch(e) {
+                this.ligandError = `Error rendering ligand: ${e.message}`;
+                const element = document.getElementById('ligand-3d-viewer');
+                if (element) this.showViewerMessage(element, e.message, true);
+            } finally {
+                this.loadingLigand = false;
+            }
+        },
+        
+        async generateOverlay() {
+            this.loadingOverlay = true;
+            this.overlayError = '';
+            try {
+                const res = await fetch('/api/visualization/overlay', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        protein_pdb: this.proteinData.pdb_content,
+                        ligand_pdbqt: this.ligandPdbqt,
+                        ligand_mol_block: this.ligandMolBlock,
+                        protein_format: this.proteinData.structure_format || 'pdb',
+                        ligand_format: this.ligandPdbqt ? 'pdbqt' : 'mol'
+                    })
+                });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Overlay generation failed'));
+                const data = await res.json();
+                this.overlayHtml = data.html || 'ready';
+
+                this.$nextTick(() => {
+                    const proteinFormat = data.protein_format || this.proteinData.structure_format || 'pdb';
+                    const ligandFormat = data.ligand_format || (this.ligandPdbqt ? 'pdbqt' : 'mol');
+                    const proteinStyle = proteinFormat === 'pdbqt'
+                        ? {stick: {radius: 0.12, colorscheme: 'spectrum'}}
+                        : {cartoon: {color: 'spectrum'}};
+
+                    this.render3DModels(
+                        'complex-3d-viewer',
+                        [
+                            {
+                                data: data.protein_pdb || this.proteinData.pdb_content,
+                                format: proteinFormat,
+                                style: proteinStyle
+                            },
+                            {
+                                data: data.ligand_structure || this.ligandPdbqt || this.ligandMolBlock,
+                                format: ligandFormat,
+                                style: {stick: {colorscheme: 'greenCarbon'}}
+                            }
+                        ],
+                        '__complexViewer',
+                        'Complex structure data is empty.'
+                    );
+                });
+            } catch(e) {
+                this.overlayError = `Error generating overlay: ${e.message}`;
+                const element = document.getElementById('complex-3d-viewer');
+                if (element) this.showViewerMessage(element, e.message, true);
+            } finally {
+                this.loadingOverlay = false;
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}
