@@ -1,7 +1,7 @@
 import json
 import uuid
 
-THREEDMOL_CDN = "https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.0.4/3Dmol-min.js"
+THREEDMOL_CDN = "https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.4.2/3Dmol-min.js"
 
 
 def _json_for_script(value: str) -> str:
