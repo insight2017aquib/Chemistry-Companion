@@ -1,9 +1,0 @@
-Component,Path,Status,Notes
-Batch Upload Form,templates/batch.html,CONNECTED,HTML form correctly routes to /api/batch/process via HTMX
-Batch API Endpoint,api/routes/batch.py,PARTIAL,Missing 'partial' status handling; drops errors from pipeline
-Batch Service,services/batch_service.py,PARTIAL,Does not surface subsystem errors to the caller
-Process One (Pipeline),core/pipeline.py,PARTIAL,Catches prediction failures but logs them silently without appending to metadata
-Open Babel Isolation,core/openbabel_utils.py,BROKEN,Top-level import crashes entire application if Open Babel is missing
-Serializer / Schema,exports/schemas/batch_export_schema.py,PARTIAL,Hardcodes 'success' status, ignoring 'partial' states
-XLSX Exporter,exports/exporters/excel_exporter.py,CONNECTED,Safely processes whatever BatchExportPayload provides
-Frontend Rendering,templates/components/batch_results.html,PARTIAL,Does not render 'partial' status or per-compound subsystem errors
