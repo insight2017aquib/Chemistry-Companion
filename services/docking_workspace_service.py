@@ -120,12 +120,17 @@ class DockingWorkspaceService:
             raise RuntimeError(_UNAVAILABLE_MSG)
 
         from docking_workflow import run_vina, parse_vina_output, map_interactions, build_docking_report
+        from docking_workflow.protein_preparation import clean_rigid_receptor_pdbqt
 
         workspace = DockingWorkspaceService.get_workspace(job_id)
         logger.info("Starting docking job %s in %s.", job_id, workspace)
 
         _require_text("Receptor PDBQT text", protein_pdbqt)
         _require_text("Ligand PDBQT text", ligand_pdbqt)
+
+        # Clean the receptor PDBQT to ensure no ROOT/BRANCH tags are present 
+        # (important if user uploaded a raw PDBQT directly)
+        protein_pdbqt, _ = clean_rigid_receptor_pdbqt(protein_pdbqt)
 
         config = {
             "center": {"x": center_x, "y": center_y, "z": center_z},

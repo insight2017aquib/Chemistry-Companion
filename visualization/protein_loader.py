@@ -48,6 +48,7 @@ def load_protein_pdb(pdb_text: str, filename: Optional[str] = None) -> ProteinVi
     num_residues = 0
     ligands = set()
 
+    STANDARD_AA = {"ALA", "ARG", "ASN", "ASP", "CYS", "GLN", "GLU", "GLY", "HIS", "ILE", "LEU", "LYS", "MET", "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL"}
     try:
         st = gemmi.read_structure_string(pdb_text)
 
@@ -56,7 +57,8 @@ def load_protein_pdb(pdb_text: str, filename: Optional[str] = None) -> ProteinVi
             for chain in model:
                 for res in chain:
                     num_residues += 1
-                    if res.is_ligand():
+                    # Avoid res.is_ligand() to prevent gemmi CoilLibrary/AttributeError issues across versions
+                    if res.name not in STANDARD_AA and res.name not in {"HOH", "WAT"}:
                         ligands.add(res.name)
     except Exception:
         num_chains, num_residues, ligands = _fallback_metadata_from_pdb_lines(pdb_text)
