@@ -37,3 +37,12 @@ __pycache__/
 Miniconda3-latest-Windows-x86_64.exe
 graphify-out/cache/
 outputs/docking_workspace/
+replacements.txt
+$null
+.env
+.env.*
+!.env.example
+
+AutoDock-Vina/
+
+Miniconda3-latest-Windows-x86_64.exe
