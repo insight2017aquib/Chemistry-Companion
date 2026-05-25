@@ -72,6 +72,23 @@ app.include_router(docking.router, prefix="/api", tags=["docking"])
 app.include_router(validation.router, prefix="/api", tags=["validation"])
 app.include_router(benchmarks.router, prefix="/api", tags=["benchmarks"])
 
+# ==========================================
+# Advanced Features (Phase 2 Additions)
+# ==========================================
+# Register the newly created isolated routers for Visualization and Docking.
+from .routes import visualization as viz_routes
+from .routes import docking_workspace as dock_ws_routes
+
+# Visualization API: handles protein parsing, ligand 2D/3D generation, and overlay rendering
+app.include_router(viz_routes.router, prefix="/api/visualization", tags=["visualization"])
+
+# Docking Workspace API: handles protein prep, gridbox detection, Vina execution, and pose extraction
+app.include_router(dock_ws_routes.router, prefix="/api/docking", tags=["docking-workspace"])
+
+# LLM API: provides AI-powered pose explanation (degrades gracefully if API key is missing)
+from .routes import llm_explanation as llm_routes
+app.include_router(llm_routes.router, prefix="/api/llm", tags=["llm"])
+
 from .routes.analysis import analyse_htmx_handler  # noqa: E402
 
 
@@ -136,6 +153,21 @@ async def settings_page(request: Request):
 @app.get("/docs", response_class=HTMLResponse)
 async def docs_page(request: Request):
     return templates.TemplateResponse(request, "docs.html", _page_ctx(request))
+
+
+@app.get("/visualization", response_class=HTMLResponse)
+async def visualization_page(request: Request):
+    return templates.TemplateResponse(request, "visualization.html", _page_ctx(request))
+
+
+@app.get("/docking-workspace", response_class=HTMLResponse)
+async def docking_workspace_page(request: Request):
+    return templates.TemplateResponse(request, "docking_workspace.html", _page_ctx(request))
+
+
+@app.get("/pose-analysis", response_class=HTMLResponse)
+async def pose_analysis_page(request: Request):
+    return templates.TemplateResponse(request, "pose_analysis.html", _page_ctx(request))
 
 
 @app.post("/analyse", response_class=HTMLResponse)

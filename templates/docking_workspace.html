@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+{% block title %}Docking Workspace — Chemistry Companion{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <header class="mb-4 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Docking Workspace</h1>
+            <p class="text-slate-500 mt-2">End-to-end protein-ligand docking powered by AutoDock Vina.</p>
+        </div>
+    </header>
+
+    <div class="card p-0 border border-border overflow-hidden" x-data="dockingWorkspace()">
+        <div x-show="errorMessage" x-cloak class="m-6 mb-0 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700" x-text="errorMessage"></div>
+        <div x-show="statusMessage" x-cloak class="m-6 mb-0 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700" x-text="statusMessage"></div>
+        
+        <!-- Grid Header for Steps -->
+        <div class="grid grid-cols-4 bg-slate-50 dark:bg-slate-900 border-b border-border text-sm font-bold text-slate-500">
+            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 1}">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">1</div> 
+                Protein Prep
+            </div>
+            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 2}">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">2</div> 
+                Ligand Prep
+            </div>
+            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 3}">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">3</div> 
+                Grid Box
+            </div>
+            <div class="p-4 flex items-center gap-2" :class="{'text-primary bg-white dark:bg-slate-800': step >= 4}">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 4 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">4</div> 
+                Run & Results
+            </div>
+        </div>
+
+        <div class="p-6">
+            
+            <!-- STEP 1: Protein -->
+            <div x-show="step === 1" class="space-y-4">
+                <h3 class="text-xl font-bold">1. Upload & Prepare Protein</h3>
+                <p class="text-slate-500 text-sm">Upload a PDB file. We will remove waters, add polar hydrogens, and compute Gasteiger charges.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form @submit.prevent="prepareProtein" class="space-y-4">
+                        <input type="file" x-ref="proteinFile" accept=".pdb" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="removeWater" class="rounded text-primary"> Remove Waters</label>
+                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="addCharges" class="rounded text-primary"> Add Charges</label>
+                        </div>
+                        <button type="submit" class="btn-primary w-full" :disabled="loading">
+                            <span x-show="!loading">Prepare Protein &rarr;</span>
+                            <span x-show="loading">Preparing...</span>
+                        </button>
+                        <div x-show="proteinError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="proteinError"></div>
+                    </form>
+                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-green-600 border border-border h-48 overflow-y-auto" x-text="log1"></div>
+                </div>
+            </div>
+
+            <!-- STEP 2: Ligand -->
+            <div x-show="step === 2" class="space-y-4" x-cloak>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold">2. Ligand Selection</h3>
+                    <button @click="step = 1" class="text-sm text-slate-500 hover:text-slate-700">&larr; Back to Protein</button>
+                </div>
+                <p class="text-slate-500 text-sm">Provide a SMILES string to generate the 3D ligand conformation for docking.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form @submit.prevent="prepareLigand" class="space-y-4">
+                        <input type="text" x-model="ligandSmiles" placeholder="SMILES (e.g. CC(=O)Oc1ccccc1C(=O)O)" required class="w-full border border-border rounded p-2 text-sm bg-bg">
+                        <button type="submit" class="btn-primary w-full" :disabled="loading">
+                            <span x-show="!loading">Prepare Ligand &rarr;</span>
+                            <span x-show="loading">Preparing...</span>
+                        </button>
+                        <div x-show="ligandError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="ligandError"></div>
+                    </form>
+                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-green-600 border border-border h-48 overflow-y-auto" x-text="log2"></div>
+                </div>
+            </div>
+
+            <!-- STEP 3: Grid Box -->
+            <div x-show="step === 3" class="space-y-4" x-cloak>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold">3. Grid Box Configuration</h3>
+                    <button @click="step = 2" class="text-sm text-slate-500 hover:text-slate-700">&larr; Back to Ligand</button>
+                </div>
+                <p class="text-slate-500 text-sm">Define the binding site search space.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form @submit.prevent="saveGridbox" class="space-y-4">
+                        <button type="button" @click="autoGrid" class="btn-secondary w-full border-dashed" :disabled="loading">Auto-Detect from Protein</button>
+                        
+                        <div class="grid grid-cols-3 gap-4">
+                            <div><label class="text-xs text-slate-500 block mb-1">Center X</label><input type="number" step="0.1" x-model="grid.center_x" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                            <div><label class="text-xs text-slate-500 block mb-1">Center Y</label><input type="number" step="0.1" x-model="grid.center_y" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                            <div><label class="text-xs text-slate-500 block mb-1">Center Z</label><input type="number" step="0.1" x-model="grid.center_z" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div><label class="text-xs text-slate-500 block mb-1">Size X (Å)</label><input type="number" step="1" x-model="grid.size_x" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                            <div><label class="text-xs text-slate-500 block mb-1">Size Y (Å)</label><input type="number" step="1" x-model="grid.size_y" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                            <div><label class="text-xs text-slate-500 block mb-1">Size Z (Å)</label><input type="number" step="1" x-model="grid.size_z" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary w-full" :disabled="loading">Confirm Grid Box &rarr;</button>
+                        <div x-show="gridError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="gridError"></div>
+                    </form>
+                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 border border-border h-48 overflow-y-auto">
+                        <div class="font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line" x-text="gridSummary"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STEP 4: Run -->
+            <div x-show="step === 4" class="space-y-4" x-cloak>
+                <div class="flex justify-between items-center">
+                    <h3 class="text-xl font-bold">4. Execution & Results</h3>
+                    <button @click="step = 3" class="text-sm text-slate-500 hover:text-slate-700" :disabled="loading">&larr; Back to Grid</button>
+                </div>
+                
+                <div class="flex gap-4 mb-4">
+                    <label class="text-sm flex items-center gap-2">Exhaustiveness: <input type="number" x-model="exhaustiveness" class="border rounded p-1 w-16 bg-bg"></label>
+                    <label class="text-sm flex items-center gap-2">Poses: <input type="number" x-model="numModes" class="border rounded p-1 w-16 bg-bg"></label>
+                </div>
+                
+                <div x-show="!canRun" class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Prepare a protein, prepare a ligand, and confirm a valid grid box before launching Vina.
+                </div>
+
+                <button @click="runDocking" class="btn-primary w-full py-3 text-lg font-bold" :disabled="loading || !canRun">
+                    <span x-show="!loading">Launch AutoDock Vina</span>
+                    <span x-show="loading" class="animate-pulse">Docking in progress...</span>
+                </button>
+                <div x-show="runError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="runError"></div>
+                <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-slate-600 dark:text-slate-300 border border-border min-h-24 whitespace-pre-line" x-text="runLog"></div>
+                
+                <div x-show="report" class="mt-8 border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 rounded p-6">
+                    <h4 class="text-xl font-bold text-green-800 dark:text-green-400 mb-4 flex items-center gap-2">Docking Completed Successfully</h4>
+                    <p class="mb-4">Best Binding Affinity: <strong class="text-2xl" x-text="report?.best_affinity + ' kcal/mol'"></strong></p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 text-sm">
+                        <div class="rounded border border-green-200 bg-white/70 p-3">
+                            <div class="text-slate-500">Job ID</div>
+                            <div class="font-mono break-all" x-text="jobId || 'N/A'"></div>
+                        </div>
+                        <div class="rounded border border-green-200 bg-white/70 p-3">
+                            <div class="text-slate-500">Pose Count</div>
+                            <div class="font-semibold" x-text="report?.num_poses ?? 0"></div>
+                        </div>
+                        <div class="rounded border border-green-200 bg-white/70 p-3">
+                            <div class="text-slate-500">Vina Log</div>
+                            <div class="font-mono break-all" x-text="report?.artifacts?.vina_log || 'Saved in job workspace'"></div>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto mb-4">
+                        <table class="w-full text-sm">
+                            <thead class="text-left text-slate-500 border-b border-green-200">
+                                <tr>
+                                    <th class="py-2 pr-4">Rank</th>
+                                    <th class="py-2 pr-4">Affinity</th>
+                                    <th class="py-2 pr-4">RMSD LB</th>
+                                    <th class="py-2 pr-4">RMSD UB</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="pose in report?.poses || []" :key="pose.rank">
+                                    <tr class="border-b border-green-100">
+                                        <td class="py-2 pr-4" x-text="pose.rank"></td>
+                                        <td class="py-2 pr-4" x-text="`${pose.affinity} kcal/mol`"></td>
+                                        <td class="py-2 pr-4" x-text="pose.rmsd_lb"></td>
+                                        <td class="py-2 pr-4" x-text="pose.rmsd_ub"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <a href="/pose-analysis" class="btn-primary inline-block">Proceed to Pose Analysis &rarr;</a>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('dockingWorkspace', () => ({
+        step: 1,
+        loading: false,
+        statusMessage: '',
+        errorMessage: '',
+        
+        proteinPdbqt: '',
+        removeWater: true,
+        addCharges: true,
+        log1: 'Waiting for PDB upload...',
+        proteinError: '',
+        
+        ligandSmiles: '',
+        ligandPdbqt: '',
+        log2: 'Waiting for SMILES...',
+        ligandError: '',
+        
+        grid: { center_x: 0, center_y: 0, center_z: 0, size_x: 20, size_y: 20, size_z: 20 },
+        gridError: '',
+        
+        exhaustiveness: 8,
+        numModes: 9,
+        report: null,
+        runError: '',
+        runLog: 'Ready to launch once all inputs are prepared.',
+        jobId: '',
+
+        get canRun() {
+            return Boolean(
+                this.proteinPdbqt &&
+                this.ligandPdbqt &&
+                this.validNumber(this.grid.center_x) &&
+                this.validNumber(this.grid.center_y) &&
+                this.validNumber(this.grid.center_z) &&
+                this.positiveNumber(this.grid.size_x) &&
+                this.positiveNumber(this.grid.size_y) &&
+                this.positiveNumber(this.grid.size_z)
+            );
+        },
+
+        get gridSummary() {
+            return [
+                'Grid box',
+                `Center X: ${this.grid.center_x}`,
+                `Center Y: ${this.grid.center_y}`,
+                `Center Z: ${this.grid.center_z}`,
+                `Size X:   ${this.grid.size_x}`,
+                `Size Y:   ${this.grid.size_y}`,
+                `Size Z:   ${this.grid.size_z}`,
+            ].join('\n');
+        },
+
+        validNumber(value) {
+            return Number.isFinite(Number(value));
+        },
+
+        positiveNumber(value) {
+            return this.validNumber(value) && Number(value) > 0;
+        },
+
+        async apiError(response, fallback) {
+            try {
+                const data = await response.clone().json();
+                if (data.detail) return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                if (data.error) return data.error;
+                if (data.message) return data.message;
+            } catch (e) {
+                try {
+                    const text = await response.text();
+                    if (text) return text;
+                } catch (ignore) {}
+            }
+            return `${fallback} (HTTP ${response.status})`;
+        },
+
+        clearMessages() {
+            this.statusMessage = '';
+            this.errorMessage = '';
+        },
+        
+        async prepareProtein() {
+            const file = this.$refs.proteinFile.files[0];
+            if(!file) return;
+            this.loading = true;
+            this.clearMessages();
+            this.proteinError = '';
+            this.report = null;
+            this.jobId = '';
+            this.log1 = "Uploading and preparing protein...";
+            try {
+                const text = await file.text();
+                const res = await fetch('/api/docking/protein_prepare', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ pdb_text: text, remove_water: this.removeWater, add_charges: this.addCharges })
+                });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Protein preparation failed'));
+                const data = await res.json();
+                this.proteinPdbqt = data.pdbqt;
+                this.log1 = `Success! Protein prepared.\nSize: ${this.proteinPdbqt.length} bytes`;
+                this.statusMessage = 'Protein prepared. Continue with ligand preparation.';
+                setTimeout(() => this.step = 2, 500);
+            } catch(e) {
+                this.proteinPdbqt = '';
+                this.proteinError = e.message;
+                this.errorMessage = `Protein preparation failed: ${e.message}`;
+                this.log1 = `Error: ${e.message}`;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async prepareLigand() {
+            if(!this.ligandSmiles.trim()) return;
+            this.loading = true;
+            this.clearMessages();
+            this.ligandError = '';
+            this.report = null;
+            this.jobId = '';
+            this.log2 = "Generating 3D ligand conformation...";
+            try {
+                const form = new FormData();
+                form.append('input_text', this.ligandSmiles.trim());
+                form.append('ph', '7.4');
+                form.append('forcefield', 'uff');
+
+                const res = await fetch('/api/docking/generate', {
+                    method: 'POST',
+                    body: form
+                });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Ligand preparation failed'));
+
+                const data = await res.json();
+                if(data.success === false) {
+                    throw new Error(data.error || 'Ligand preparation failed.');
+                }
+
+                let pdbqt = data.pdbqt || data.pdbqt_content || '';
+                if(!pdbqt && data.download_url) {
+                    const fileRes = await fetch(data.download_url);
+                    if(!fileRes.ok) throw new Error(await this.apiError(fileRes, 'Ligand PDBQT download failed'));
+                    pdbqt = await fileRes.text();
+                }
+
+                if(!pdbqt || !pdbqt.trim()) {
+                    throw new Error('Ligand preparation returned an empty PDBQT structure.');
+                }
+
+                this.ligandPdbqt = pdbqt;
+                this.log2 = `Success! Ligand ready.\nSize: ${this.ligandPdbqt.length} bytes`;
+                this.statusMessage = 'Ligand prepared. Configure the grid box next.';
+                setTimeout(() => this.step = 3, 500);
+            } catch(e) {
+                this.ligandPdbqt = '';
+                this.ligandError = e.message;
+                this.errorMessage = `Ligand preparation failed: ${e.message}`;
+                this.log2 = `Error: ${e.message}`;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        async autoGrid() {
+            this.loading = true;
+            this.clearMessages();
+            this.gridError = '';
+            try {
+                const res = await fetch('/api/docking/gridbox', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ pdbqt_text: this.proteinPdbqt })
+                });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Grid box calculation failed'));
+                this.grid = await res.json();
+                this.statusMessage = 'Grid box auto-detected. Review and confirm the values.';
+            } catch(e) {
+                this.gridError = e.message;
+                this.errorMessage = `Auto-grid failed: ${e.message}`;
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        saveGridbox() {
+            this.clearMessages();
+            this.gridError = '';
+            if(!this.canRun) {
+                this.gridError = 'Protein, ligand, and positive grid dimensions are required before running docking.';
+                this.errorMessage = this.gridError;
+                return;
+            }
+            this.statusMessage = 'Grid confirmed. Ready to launch AutoDock Vina.';
+            this.step = 4;
+        },
+        
+        async runDocking() {
+            if(!this.canRun) return;
+            this.loading = true;
+            this.clearMessages();
+            this.runError = '';
+            this.report = null;
+            this.jobId = '';
+            this.runLog = 'Submitting docking job to AutoDock Vina...';
+            try {
+                const res = await fetch('/api/docking/run', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        protein_pdbqt: this.proteinPdbqt,
+                        ligand_pdbqt: this.ligandPdbqt,
+                        center_x: parseFloat(this.grid.center_x),
+                        center_y: parseFloat(this.grid.center_y),
+                        center_z: parseFloat(this.grid.center_z),
+                        size_x: parseFloat(this.grid.size_x),
+                        size_y: parseFloat(this.grid.size_y),
+                        size_z: parseFloat(this.grid.size_z),
+                        exhaustiveness: parseInt(this.exhaustiveness),
+                        num_modes: parseInt(this.numModes)
+                    })
+                });
+                if(!res.ok) throw new Error(await this.apiError(res, 'Docking run failed'));
+                const data = await res.json();
+                this.report = data.report;
+                this.jobId = data.job_id || '';
+                if(!this.report || !Array.isArray(this.report.poses) || !this.report.poses.length) {
+                    throw new Error('Docking completed but no poses were returned.');
+                }
+                this.runLog = `Docking completed.\nPoses: ${this.report.num_poses}\nBest affinity: ${this.report.best_affinity} kcal/mol`;
+                this.statusMessage = 'Docking completed successfully.';
+            } catch(e) {
+                this.report = null;
+                this.jobId = '';
+                this.runError = e.message;
+                this.errorMessage = `Docking failed: ${e.message}`;
+                this.runLog = `Error: ${e.message}`;
+            } finally {
+                this.loading = false;
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+Feature,GUI Page,Frontend Event,API Endpoint,Service Layer,Pipeline Function,Serializer,Renderer,Status
+Descriptors,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_descriptors,components/analysis_results.html,CONNECTED
+Functional Groups,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_functional_groups,components/analysis_results.html,CONNECTED
+IR,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_ir,components/analysis_results.html,CONNECTED
+1H NMR,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_proton_nmr,components/analysis_results.html,CONNECTED
+13C NMR,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_carbon_nmr,None,DISCONNECTED
+Docking,Docking Prep,form submit,/api/docking/generate,None,prepare_docking_structure,None,None,DISCONNECTED
+Validation,Validation,None,None,None,validate_spectra_workflow,None,validation.html,DISCONNECTED
+Benchmarks,Benchmarks,None,None,None,benchmark_from_csv,None,benchmarks.html,DISCONNECTED
+Exports,Exports,form submit,/api/export/profile,ExportService,build_payload,None,None,CONNECTED
+History,History,hx-get/fetch,/api/history,HistoryService,list_analyses,None,history_table.html,CONNECTED
+Batch,Batch Analysis,hx-post=/api/batch/process,/api/batch/process,BatchService,process_batch,build_batch_export_payload,batch_results.html,CONNECTED
+Single Analysis,Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_analysis_result,analysis_results.html,CONNECTED
+Molecule Image,None,img src,/api/structure.png,None,mol_to_png_bytes,None,None,CONNECTED
+IUPAC Resolution,None,fetch,/api/resolve,None,resolve_molecule_input,None,None,CONNECTED
+SMARTS Detection,Dashboard/Analysis,hx-post=/api/analyse,/api/analyse,AnalysisService,analyze_molecule,serialize_functional_groups,analysis_results.html,CONNECTED
