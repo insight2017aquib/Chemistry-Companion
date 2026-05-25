@@ -37,3 +37,39 @@ __pycache__/
 Miniconda3-latest-Windows-x86_64.exe
 graphify-out/cache/
 outputs/docking_workspace/
+
+# Generated outputs
+outputs/
+graphify-out/
+
+# Benchmarks
+descriptor_benchmark*
+api_coverage.csv
+backend_inventory.csv
+frontend_backend_matrix.csv
+frontend_event_matrix.csv
+gui_feature_matrix.csv
+route_mount_report.csv
+batch_connectivity_matrix.csv
+
+# Personal/generated chemistry files
+final_compounds.csv
+
+# Debug/probe
+*_probe.*
+*_trace.*
+*_debug.*
+*_audit.*
+
+# Generated reports
+validation_report.md
+
+# Temporary
+$null
+replacements.txt
+
+# Installer/local binaries
+*.exe
+
+# Embedded repos
+AutoDock-Vina/
