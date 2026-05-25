@@ -24,4 +24,25 @@ validation/results/
 
 *.pdbqt
 
-*.egg-info/
+*.egg-info/.env
+.env.local
+.env
+.env.*
+!.env.example
+
+.venv/
+__pycache__/
+*.pyc
+
+Miniconda3-latest-Windows-x86_64.exe
+graphify-out/cache/
+outputs/docking_workspace/
+replacements.txt
+$null
+.env
+.env.*
+!.env.example
+
+AutoDock-Vina/
+
+Miniconda3-latest-Windows-x86_64.exe
