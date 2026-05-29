@@ -36,9 +36,25 @@ __pycache__/
 
 Miniconda3-latest-Windows-x86_64.exe
 graphify-out/cache/
-outputs/docking_workspace/
+outputs/
 replacements.txt
 $null
+
+# Generated audit/probe/report artifacts
+/*.csv
+/*.json
+/*_probe.md
+/*_report.md
+/*_trace.md
+/*_forensics.md
+/*_audit.md
+/*_repair_plan.md
+/*_fix.md
+/*_dashboard.md
+/debug_*.py
+/scratch_*.py
+/scripts/*probe*.py
+
 .env
 .env.*
 !.env.example

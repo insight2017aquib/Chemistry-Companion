@@ -1,7 +1,0 @@
-template,element,context,action_type,endpoint,status
-templates/analysis.html,form,[class: space-y-4],hx-post,/api/analyse,CONNECTED
-templates/batch.html,form,[class: space-y-4],action,/api/batch/process,CONNECTED
-templates/batch.html,form,[class: space-y-4],hx-post,/api/batch/process,CONNECTED
-templates/dashboard.html,form,[class: space-y-4],hx-post,/analyse,CONNECTED
-templates/exports.html,form,[class: space-y-4],action,/api/export/profile,CONNECTED
-templates/components/molecule_input.html,form,[id: analysis-form][class: space-y-5],hx-post,/analyse,CONNECTED
