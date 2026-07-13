@@ -114,13 +114,10 @@ class ChemistryApp {
         try {
             const formData = new FormData();
             formData.append('file', file);
-            if (options.include_spectra !== undefined) {
-                formData.append('include_spectra', options.include_spectra ? 'true' : 'false');
-            }
-
-            const response = await fetch('/api/batch/upload', {
+            
+            const response = await fetch('/api/batch', {
                 method: 'POST',
-                body: formData,
+                body: formData
             });
 
             if (!response.ok) {
@@ -190,8 +187,16 @@ class ChemistryApp {
      * Save analysis to history
      */
     async saveToHistory(analysis) {
-        console.warn('saveToHistory is not available via API; history is saved automatically during analysis.');
-        return null;
+        try {
+            const response = await fetchAPI('/api/history', {
+                method: 'POST',
+                body: JSON.stringify(analysis)
+            });
+            return response;
+        } catch (error) {
+            console.error('Save history error:', error);
+            throw error;
+        }
     }
 
     closeModals() {
@@ -264,49 +269,3 @@ function renderAnalysisResults(data, containerId) {
 // Export for use in other scripts
 window.ChemistryApp = ChemistryApp;
 window.renderAnalysisResults = renderAnalysisResults;
-
-// Live resolution helper for the analysis form
-function debounce(fn, wait) {
-    let t = null;
-    return (...args) => {
-        clearTimeout(t);
-        t = setTimeout(() => fn(...args), wait);
-    };
-}
-
-async function resolveInputLive(text) {
-    try {
-        const resp = await fetch('/api/resolve', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input_text: text })
-        });
-        return await resp.json();
-    } catch (err) {
-        return { success: false, error: String(err) };
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    const ta = document.getElementById('input_text');
-    const preview = document.getElementById('structure-preview');
-    if (!ta || !preview) return;
-
-    const update = debounce(async () => {
-        const text = ta.value.trim();
-        if (!text) {
-            preview.textContent = 'Enter SMILES for instant preview';
-            return;
-        }
-        preview.textContent = 'Resolving...';
-        const info = await resolveInputLive(text);
-        if (!info.success) {
-            preview.textContent = `Error: ${info.error || 'Could not resolve input'}`;
-            return;
-        }
-        preview.innerHTML = `Detected: <strong>${info.detected_type || 'unknown'}</strong><br>SMILES: <code>${info.canonical_smiles || ''}</code><br>Source: ${info.source || ''}`;
-    }, 350);
-
-    ta.addEventListener('input', update);
-});
-

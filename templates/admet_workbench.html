@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}ADMET & Developability Workbench - Chemistry Companion{% endblock %}
+
+{% block head %}
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="admetApp()">
+    <header class="mb-8">
+        <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <div class="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            ADMET & Developability
+        </h1>
+        <p class="text-slate-500 mt-2">Evaluate physicochemical properties, flag toxicophores, and assess development risks.</p>
+    </header>
+
+    <div class="flex flex-col md:flex-row gap-6">
+        <!-- Sidebar -->
+        <aside class="w-full md:w-1/4 shrink-0">
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden sticky top-6">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900">Chemical Series</h2>
+                </div>
+                <div class="p-2 space-y-1 max-h-[70vh] overflow-y-auto">
+                    {% for s in series %}
+                    <button @click="loadSeries('{{ s.id }}')" 
+                            class="w-full text-left px-3 py-2 rounded text-sm transition-colors border"
+                            :class="activeSeriesId === '{{ s.id }}' ? 'bg-amber-50 border-amber-200 text-amber-900 font-semibold shadow-sm' : 'border-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-900'">
+                        {{ s.name }}
+                        <div class="text-[10px] text-slate-400 font-normal truncate mt-0.5" :class="activeSeriesId === '{{ s.id }}' ? 'text-amber-700/70' : ''">{{ s.target_name }}</div>
+                    </button>
+                    {% else %}
+                    <div class="text-xs text-slate-500 p-4 text-center">No Chemical Series found. Create one in the MedChem Workbench.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1">
+            <div x-show="!activeSeriesId" class="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+                <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <p>Select a Chemical Series to view its developability profile.</p>
+            </div>
+
+            <div x-show="activeSeriesId" x-cloak class="space-y-6">
+                
+                <!-- Series Level Analysis -->
+                <div class="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+                        <h2 class="font-bold text-slate-900">Series Summary & Liability Analysis</h2>
+                        <button @click="runSeriesAi" class="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 font-bold px-3 py-1.5 rounded border border-amber-200" :disabled="loadingAi">
+                            <span x-show="!loadingAi">Run AI Series Analysis</span>
+                            <span x-show="loadingAi">Analyzing...</span>
+                        </button>
+                    </div>
+                    <div class="p-6">
+                        <div id="series-ai-content" class="text-sm text-slate-600">
+                            <p class="text-slate-400 italic">Run AI Series Analysis to evaluate aggregate liabilities across this chemical series.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Compounds Dashboard (HTMX Injected) -->
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900 mb-4">Compound Profiles</h2>
+                    <div id="admet-dashboard-container" class="min-h-[200px]">
+                        <div class="flex items-center justify-center h-48 border border-slate-200 rounded bg-white text-slate-400">
+                            <span class="animate-pulse">Loading dashboard...</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('admetApp', () => ({
+        activeSeriesId: null,
+        loadingAi: false,
+        radarCharts: [],
+        
+        async loadSeries(seriesId) {
+            this.activeSeriesId = seriesId;
+            document.getElementById('series-ai-content').innerHTML = '<p class="text-slate-400 italic">Run AI Series Analysis to evaluate aggregate liabilities across this chemical series.</p>';
+            
+            const container = document.getElementById('admet-dashboard-container');
+            container.innerHTML = '<div class="flex items-center justify-center h-48 border border-slate-200 rounded bg-white text-amber-600 font-bold"><span class="animate-pulse">Loading ADMET profiles...</span></div>';
+            
+            try {
+                const res = await fetch(`/api/admet/series/${seriesId}/dashboard`);
+                if (res.ok) {
+                    container.innerHTML = await res.text();
+                    
+                    // Initialize htmx on the new content for the AI explain buttons
+                    htmx.process(container);
+                    
+                    // Initialize Chart.js Radar Charts
+                    this.initRadarCharts();
+                } else {
+                    container.innerHTML = '<div class="text-red-500 p-4">Failed to load ADMET data.</div>';
+                }
+            } catch (e) {
+                container.innerHTML = `<div class="text-red-500 p-4">Error: ${e.message}</div>`;
+            }
+        },
+        
+        initRadarCharts() {
+            // Destroy existing charts to prevent memory leaks
+            this.radarCharts.forEach(chart => chart.destroy());
+            this.radarCharts = [];
+            
+            const canvases = document.querySelectorAll('.radar-chart-canvas');
+            canvases.forEach(canvas => {
+                const stats = JSON.parse(canvas.getAttribute('data-stats'));
+                
+                const chart = new Chart(canvas, {
+                    type: 'radar',
+                    data: {
+                        labels: ['MW (/10)', 'LogP', 'TPSA (/10)', 'HBD (*10)', 'HBA (*10)'],
+                        datasets: [{
+                            label: 'Drug-likeness Profile',
+                            data: [
+                                stats.mw / 10,
+                                stats.logp,
+                                stats.tpsa / 10,
+                                stats.hbd,
+                                stats.hba
+                            ],
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)', // amber-500 with opacity
+                            borderColor: 'rgba(245, 158, 11, 1)',
+                            pointBackgroundColor: 'rgba(245, 158, 11, 1)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgba(245, 158, 11, 1)'
+                        },
+                        {
+                            label: 'Ideal Zone (Lipinski/Veber limits)',
+                            data: [50, 5, 14, 50, 100], // 500/10, 5, 140/10, 5*10, 10*10
+                            backgroundColor: 'rgba(148, 163, 184, 0.1)', // slate-400 with opacity
+                            borderColor: 'rgba(148, 163, 184, 0.5)',
+                            borderDash: [5, 5],
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                angleLines: { color: 'rgba(0,0,0,0.1)' },
+                                grid: { color: 'rgba(0,0,0,0.05)' },
+                                pointLabels: { font: { size: 9 }, color: '#64748b' },
+                                ticks: { display: false }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+                
+                this.radarCharts.push(chart);
+            });
+        },
+        
+        async runSeriesAi() {
+            if (!this.activeSeriesId) return;
+            this.loadingAi = true;
+            document.getElementById('series-ai-content').innerHTML = '<div class="animate-pulse text-amber-600 font-bold">AI is analyzing series liabilities...</div>';
+            
+            try {
+                const res = await fetch(`/api/admet/series/${this.activeSeriesId}/ai-analyze`, { method: 'POST' });
+                if (res.ok) {
+                    document.getElementById('series-ai-content').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingAi = false;
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

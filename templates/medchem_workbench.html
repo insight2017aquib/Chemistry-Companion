@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block title %}Medicinal Chemistry Workbench - Chemistry Companion{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="medchemWorkbench()">
+    <header class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900">Medicinal Chemistry Workbench</h1>
+            <p class="mt-2 max-w-3xl text-sm text-slate-500">
+                Manage chemical series, analyze Structure-Activity Relationships (SAR), and design analogs with AI guidance.
+            </p>
+        </div>
+    </header>
+
+    <div class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+        
+        <!-- Left Panel: Series Manager -->
+        <aside class="space-y-5">
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-bold text-slate-900">Chemical Series</h2>
+                    <button @click="showNewSeriesForm = !showNewSeriesForm" class="text-indigo-600 hover:text-indigo-800 text-sm font-semibold">+ New</button>
+                </div>
+                
+                <form x-show="showNewSeriesForm" x-cloak @submit.prevent="createSeries" class="space-y-3 mb-4 p-3 bg-slate-50 rounded border border-slate-200">
+                    <input type="text" x-model="newSeries.name" placeholder="Series Name (e.g. Kinase Inhibitors)" class="w-full text-sm rounded border-slate-300" required>
+                    <input type="text" x-model="newSeries.target" placeholder="Target Name (e.g. EGFR)" class="w-full text-sm rounded border-slate-300" required>
+                    <button type="submit" class="w-full bg-indigo-600 text-white text-sm py-1.5 rounded font-semibold hover:bg-indigo-700">Create Series</button>
+                </form>
+
+                <ul class="space-y-2">
+                    <template x-for="series in allSeries" :key="series.id">
+                        <li>
+                            <button @click="selectSeries(series)" 
+                                    class="w-full text-left px-3 py-2 rounded border transition-colors text-sm"
+                                    :class="activeSeries?.id === series.id ? 'bg-indigo-50 border-indigo-300 text-indigo-900 font-semibold' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'">
+                                <div x-text="series.name"></div>
+                                <div class="text-[10px] text-slate-500 font-normal" x-text="`Target: ${series.target_name}`"></div>
+                            </button>
+                        </li>
+                    </template>
+                    <div x-show="!allSeries.length" class="text-sm text-slate-500 italic">No series found. Create one to begin.</div>
+                </ul>
+            </div>
+            
+            <!-- Add Compound Form -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" x-show="activeSeries" x-cloak>
+                <h2 class="font-bold text-slate-900 mb-4">Add Compound</h2>
+                <form @submit.prevent="addCompound" class="space-y-3">
+                    <input type="text" x-model="newCompound.name" placeholder="Compound ID (e.g. CC-001)" class="w-full text-sm rounded border-slate-300" required>
+                    <input type="text" x-model="newCompound.smiles" placeholder="SMILES string" class="w-full text-sm rounded border-slate-300 font-mono text-xs" required>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="number" step="0.01" x-model="newCompound.pic50" placeholder="pIC50 (Optional)" class="w-full text-sm rounded border-slate-300">
+                        <input type="number" step="0.1" x-model="newCompound.ic50" placeholder="IC50 nM (Opt)" class="w-full text-sm rounded border-slate-300">
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 text-white text-sm py-2 rounded font-semibold hover:bg-emerald-700" :disabled="loadingAdd">
+                        <span x-show="!loadingAdd">Add to Series</span>
+                        <span x-show="loadingAdd">Calculating...</span>
+                    </button>
+                </form>
+            </div>
+            <!-- Import Data Form -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm mt-5" x-show="activeSeries" x-cloak>
+                <h2 class="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Import Dataset
+                </h2>
+                <form @submit.prevent="importData" class="space-y-3">
+                    <input type="file" x-ref="fileInput" accept=".csv, .xlsx" class="w-full text-xs" required>
+                    
+                    <div class="space-y-2 pt-2 border-t border-slate-100">
+                        <label class="text-[10px] uppercase font-bold text-slate-500">Column Mapping (JSON)</label>
+                        <textarea x-model="columnMap" class="w-full text-xs rounded border-slate-300 font-mono" rows="4"></textarea>
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-slate-800 text-white text-sm py-2 rounded font-semibold hover:bg-slate-900" :disabled="loadingImport">
+                        <span x-show="!loadingImport">Upload & Import</span>
+                        <span x-show="loadingImport">Importing...</span>
+                    </button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Right Panel: Data Explorer -->
+        <main class="space-y-6" x-show="activeSeries" x-cloak>
+            
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col h-[500px]">
+                <div class="bg-slate-50 border-b border-slate-200 px-4 py-3 flex gap-4">
+                    <button @click="activeTab = 'table'" class="text-sm font-semibold pb-1" :class="activeTab === 'table' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'">SAR Table</button>
+                    <button @click="activeTab = 'plot'; initPlot()" class="text-sm font-semibold pb-1" :class="activeTab === 'plot' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'">Activity Plot</button>
+                    <button @click="activeTab = 'mmp'; fetchMmps()" class="text-sm font-semibold pb-1" :class="activeTab === 'mmp' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'">Matched Pairs</button>
+                    <button @click="activeTab = 'ai'" class="text-sm font-semibold pb-1" :class="activeTab === 'ai' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-slate-500 hover:text-slate-700'">AI Chemist</button>
+                    <button @click="activeTab = 'designer'" class="text-sm font-semibold pb-1" :class="activeTab === 'designer' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-700'" x-show="selectedCompoundForDesign">Analog Designer</button>
+                    <div class="flex-1"></div>
+                    <button @click="downloadReport" class="text-xs font-bold text-slate-500 hover:text-slate-900 flex items-center gap-1 bg-white border border-slate-200 px-2 rounded">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Export Report
+                    </button>
+                </div>
+                
+                <!-- SAR Table Tab -->
+                <div x-show="activeTab === 'table'" class="overflow-auto flex-1 p-0">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-100 text-slate-600 uppercase text-[10px] font-bold tracking-wider sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="py-2 px-3">#</th>
+                                <th class="py-2 px-3">ID</th>
+                                <th class="py-2 px-3">SMILES</th>
+                                <th class="py-2 px-3 text-indigo-700">pIC50</th>
+                                <th class="py-2 px-3">Docking</th>
+                                <th class="py-2 px-3">MW</th>
+                                <th class="py-2 px-3">LogP</th>
+                                <th class="py-2 px-3">TPSA</th>
+                                <th class="py-2 px-3">Feasibility (SA)</th>
+                                <th class="py-2 px-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="medchem-table-body">
+                            <!-- Injected via HTMX/Fetch -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Plot Tab -->
+                <div x-show="activeTab === 'plot'" class="p-6 flex-1 flex flex-col items-center justify-center">
+                    <div class="w-full max-w-2xl h-80">
+                        <canvas id="sarChart"></canvas>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4">Scatter plot of LogP vs pIC50. Bubble size indicates Molecular Weight.</p>
+                </div>
+                
+                <!-- MMP Tab -->
+                <div x-show="activeTab === 'mmp'" class="p-6 flex-1 overflow-auto bg-slate-50">
+                    <div class="max-w-3xl mx-auto">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4">Matched Molecular Pairs (MMP)</h3>
+                        <div id="mmp-content" class="bg-white p-6 rounded border border-slate-200 shadow-sm min-h-[200px]">
+                            <div class="text-slate-500 text-sm text-center mt-10">Loading MMPs...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Chemist Tab -->
+                <div x-show="activeTab === 'ai'" class="p-6 flex-1 overflow-auto bg-slate-50">
+                    <div class="max-w-3xl mx-auto">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="text-lg font-bold text-slate-900">SAR Trend Analysis</h3>
+                            <button @click="runAiSar" class="bg-purple-600 text-white px-4 py-2 rounded text-sm font-semibold hover:bg-purple-700" :disabled="loadingAi">
+                                <span x-show="!loadingAi">Analyze Trends</span>
+                                <span x-show="loadingAi">Analyzing...</span>
+                            </button>
+                        </div>
+                        <div id="ai-sar-content" class="bg-white p-6 rounded border border-slate-200 shadow-sm min-h-[200px]">
+                            <div class="text-slate-500 text-sm text-center mt-10">Click "Analyze Trends" to generate an AI report on this series.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analog Designer Tab -->
+                <div x-show="activeTab === 'designer'" class="p-6 flex-1 overflow-auto bg-slate-50">
+                    <div class="max-w-4xl mx-auto grid grid-cols-2 gap-6">
+                        <!-- Rule Based -->
+                        <div class="bg-white p-5 rounded border border-slate-200 shadow-sm">
+                            <h3 class="text-lg font-bold text-slate-900 mb-1">Rule-Based Bioisosteres</h3>
+                            <p class="text-xs text-slate-500 mb-4">Curated medicinal chemistry replacements.</p>
+                            <div id="bioisostere-content"></div>
+                        </div>
+                        
+                        <!-- AI Generative -->
+                        <div class="bg-white p-5 rounded border border-purple-200 shadow-sm">
+                            <h3 class="text-lg font-bold text-purple-900 mb-1">AI Analog Designer</h3>
+                            <p class="text-xs text-slate-500 mb-4">Lead optimization suggestions based on physical properties.</p>
+                            
+                            <form @submit.prevent="runAiDesign" class="mb-4">
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Optimization Goal</label>
+                                <select x-model="targetProfile" class="w-full text-sm rounded border-slate-300 mb-2">
+                                    <option value="Reduce lipophilicity (LogP) while maintaining MW">Reduce Lipophilicity (LogP)</option>
+                                    <option value="Improve metabolic stability (reduce oxidation risk)">Improve Metabolic Stability</option>
+                                    <option value="Increase aqueous solubility">Increase Aqueous Solubility</option>
+                                    <option value="Rigidify scaffold to improve potency">Rigidify Scaffold (Reduce Rotatable Bonds)</option>
+                                </select>
+                                <button type="submit" class="w-full bg-purple-600 text-white text-xs py-2 rounded font-semibold hover:bg-purple-700" :disabled="loadingAiDesign">
+                                    <span x-show="!loadingAiDesign">Generate Analogs</span>
+                                    <span x-show="loadingAiDesign">Generating...</span>
+                                </button>
+                            </form>
+                            
+                            <div id="ai-design-content" class="text-sm border-t border-slate-100 pt-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('medchemWorkbench', () => ({
+        allSeries: [],
+        activeSeries: null,
+        compounds: [],
+        showNewSeriesForm: false,
+        newSeries: { name: '', target: '' },
+        newCompound: { name: '', smiles: '', pic50: '', ic50: '' },
+        activeTab: 'table',
+        loadingAdd: false,
+        loadingImport: false,
+        loadingAi: false,
+        loadingAiDesign: false,
+        selectedCompoundForDesign: null,
+        targetProfile: 'Reduce lipophilicity (LogP) while maintaining MW',
+        columnMap: '{\n  "smiles_col": "SMILES",\n  "name_col": "ID",\n  "activity_val_col": "IC50",\n  "activity_unit": "nM",\n  "activity_type": "IC50"\n}',
+        chartInstance: null,
+
+        init() {
+            this.fetchSeries();
+        },
+
+        async fetchSeries() {
+            try {
+                const res = await fetch('/api/medchem/series');
+                if (res.ok) {
+                    this.allSeries = await res.json();
+                } else {
+                    // Fallback stub for UI testing
+                    this.allSeries = [];
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        async createSeries() {
+            const fd = new FormData();
+            fd.append("name", this.newSeries.name);
+            fd.append("target", this.newSeries.target);
+            
+            const res = await fetch('/api/medchem/series', { method: 'POST', body: fd });
+            if (res.ok) {
+                const s = await res.json();
+                this.allSeries.unshift(s);
+                this.showNewSeriesForm = false;
+                this.newSeries = {name: '', target: ''};
+                this.selectSeries(s);
+            }
+        },
+
+        async selectSeries(series) {
+            this.activeSeries = series;
+            this.activeTab = 'table';
+            this.selectedCompoundForDesign = null;
+            this.fetchCompounds();
+        },
+
+        async fetchCompounds() {
+            if (!this.activeSeries) return;
+            const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/compounds`);
+            if (res.ok) {
+                document.getElementById('medchem-table-body').innerHTML = await res.text();
+            }
+        },
+
+        async addCompound() {
+            this.loadingAdd = true;
+            const fd = new FormData();
+            fd.append("smiles", this.newCompound.smiles);
+            fd.append("name", this.newCompound.name);
+            if (this.newCompound.pic50) fd.append("pic50", this.newCompound.pic50);
+            if (this.newCompound.ic50) fd.append("ic50", this.newCompound.ic50);
+
+            try {
+                const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/compounds`, { method: 'POST', body: fd });
+                if (res.ok) {
+                    this.newCompound = { name: '', smiles: '', pic50: '', ic50: '' };
+                    this.fetchCompounds();
+                }
+            } finally {
+                this.loadingAdd = false;
+            }
+        },
+        
+        async importData() {
+            this.loadingImport = true;
+            const file = this.$refs.fileInput.files[0];
+            if (!file) {
+                this.loadingImport = false;
+                return;
+            }
+            
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("column_map", this.columnMap);
+            
+            try {
+                const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/import`, { method: 'POST', body: fd });
+                if (res.ok) {
+                    const data = await res.json();
+                    alert(`Import successful! Imported ${data.imported_count} compounds.`);
+                    this.fetchCompounds();
+                    this.$refs.fileInput.value = '';
+                } else {
+                    alert("Import failed. Check column mappings.");
+                }
+            } finally {
+                this.loadingImport = false;
+            }
+        },
+        
+        async designAnalogs(compoundId) {
+            this.selectedCompoundForDesign = compoundId;
+            this.activeTab = 'designer';
+            document.getElementById('bioisostere-content').innerHTML = "<div class='animate-pulse'>Loading...</div>";
+            document.getElementById('ai-design-content').innerHTML = "";
+            
+            const res = await fetch(`/api/medchem/compounds/${compoundId}/bioisosteres`, {method: 'POST'});
+            if (res.ok) {
+                document.getElementById('bioisostere-content').innerHTML = await res.text();
+            }
+        },
+        
+        async runAiDesign() {
+            if (!this.selectedCompoundForDesign) return;
+            this.loadingAiDesign = true;
+            document.getElementById('ai-design-content').innerHTML = "<div class='animate-pulse text-purple-600'>AI is generating analog ideas...</div>";
+            
+            const fd = new FormData();
+            fd.append("target_profile", this.targetProfile);
+            
+            try {
+                const res = await fetch(`/api/medchem/compounds/${this.selectedCompoundForDesign}/ai-design`, {method: 'POST', body: fd});
+                if (res.ok) {
+                    document.getElementById('ai-design-content').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingAiDesign = false;
+            }
+        },
+        
+        async fetchMmps() {
+            if (!this.activeSeries) return;
+            document.getElementById('mmp-content').innerHTML = "<div class='animate-pulse text-indigo-600'>Analyzing matched molecular pairs...</div>";
+            try {
+                const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/mmps`);
+                if (res.ok) {
+                    document.getElementById('mmp-content').innerHTML = await res.text();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        
+        async downloadReport() {
+            if (!this.activeSeries) return;
+            window.open(`/api/medchem/series/${this.activeSeries.id}/report`, '_blank');
+        },
+        
+        async runAiSar() {
+            this.loadingAi = true;
+            document.getElementById('ai-sar-content').innerHTML = "<div class='animate-pulse text-purple-600'>AI is analyzing SAR trends...</div>";
+            try {
+                const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/ai-sar`, {method: 'POST'});
+                if (res.ok) {
+                    document.getElementById('ai-sar-content').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingAi = false;
+            }
+        },
+
+        async initPlot() {
+            const ctx = document.getElementById('sarChart');
+            if (!ctx || !this.activeSeries) return;
+            if (this.chartInstance) this.chartInstance.destroy();
+
+            let points = [];
+            try {
+                const res = await fetch(`/api/medchem/series/${this.activeSeries.id}/sar-data`);
+                if (res.ok) {
+                    const data = await res.json();
+                    points = data.points || [];
+                }
+            } catch (e) {
+                console.error('Failed to load SAR data', e);
+            }
+
+            this.chartInstance = new Chart(ctx, {
+                type: 'bubble',
+                data: {
+                    datasets: [{
+                        label: points.length ? 'Compounds' : 'No plottable compounds (need LogP + pIC50)',
+                        data: points,
+                        backgroundColor: 'rgba(79, 70, 229, 0.5)',
+                        borderColor: 'rgb(79, 70, 229)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: (item) => {
+                                    const p = item.raw || {};
+                                    return `${p.name || p.id || ''} (LogP ${p.x}, pIC50 ${p.y})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { title: {display: true, text: 'LogP'} },
+                        y: { title: {display: true, text: 'pIC50'} }
+                    }
+                }
+            });
+        }
+    }));
+});
+</script>
+{% endblock %}

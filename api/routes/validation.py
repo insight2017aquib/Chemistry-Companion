@@ -5,14 +5,15 @@ Validation workflow execution API.
 """
 
 import logging
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from core.paths import outputs_dir, package_root, sample_data_dir
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = package_root()
 
 @router.post("/validation/run")
 async def run_validation() -> dict[str, Any]:
@@ -29,7 +30,7 @@ async def run_validation() -> dict[str, Any]:
 
         benchmark_csv = ROOT / "spectra_benchmark.csv"
         if not benchmark_csv.exists():
-            fallback_csv = ROOT / "data" / "spectra_benchmark.csv"
+            fallback_csv = sample_data_dir() / "spectra_benchmark.csv"
             if fallback_csv.exists():
                 benchmark_csv = fallback_csv
             else:
@@ -40,7 +41,7 @@ async def run_validation() -> dict[str, Any]:
         
         report = validate_spectra_workflow(records)
         
-        output_dir = ROOT / "outputs" / "spectra"
+        output_dir = outputs_dir() / "spectra"
         output_dir.mkdir(parents=True, exist_ok=True)
         plot_dir = output_dir / "publication_plots"
         

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup — Chemistry Companion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'sci-blue': '#0366d6',
+                        'sci-gray': '#24292e',
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        .fre-step-dot { width: 0.55rem; height: 0.55rem; border-radius: 9999px; }
+        .fre-card { background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; box-shadow: 0 10px 30px rgba(15,23,42,0.06); }
+        .fre-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.55rem 0.75rem; font-size: 0.875rem; }
+        .fre-input:focus { outline: none; border-color: #0366d6; box-shadow: 0 0 0 3px rgba(3,102,214,0.15); }
+        .fre-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; border-radius: 0.5rem; padding: 0.6rem 1.1rem; font-size: 0.875rem; font-weight: 600; transition: all .15s; }
+        .fre-btn-primary { background: #0366d6; color: white; }
+        .fre-btn-primary:hover { background: #0256b8; }
+        .fre-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+        .fre-btn-secondary { background: white; color: #334155; border: 1px solid #cbd5e1; }
+        .fre-btn-secondary:hover { background: #f8fafc; }
+        .fre-provider { border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 0.9rem 1rem; cursor: pointer; transition: all .15s; }
+        .fre-provider:hover { border-color: #93c5fd; background: #f8fbff; }
+        .fre-provider.active { border-color: #0366d6; background: #eff6ff; box-shadow: 0 0 0 1px #0366d6; }
+        .fre-badge-ok { background: #dcfce7; color: #166534; }
+        .fre-badge-miss { background: #fef3c7; color: #92400e; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 min-h-screen">
+<div class="max-w-3xl mx-auto px-4 py-10"
+     x-data="setupWizard()"
+     x-init="init()"
+     x-cloak>
+
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sci-blue text-white mb-4 shadow-lg shadow-blue-500/20">
+            <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" opacity="0.3"/>
+                <circle cx="12" cy="5" r="2"/>
+                <circle cx="18" cy="17" r="2"/>
+                <circle cx="6" cy="17" r="2"/>
+            </svg>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight">Chemistry Companion</h1>
+        <p class="text-slate-500 text-sm mt-1">Setup Wizard · v<span x-text="version"></span></p>
+    </div>
+
+    <!-- Progress -->
+    <div class="flex items-center justify-center gap-2 mb-8" x-show="step > 1 && step < 10">
+        <template x-for="i in 9" :key="i">
+            <div class="fre-step-dot"
+                 :class="i <= step ? 'bg-sci-blue' : 'bg-slate-200'"></div>
+        </template>
+    </div>
+
+    <div class="fre-card p-6 sm:p-8">
+
+        <!-- STEP 1 Welcome -->
+        <div x-show="step === 1">
+            <h2 class="text-xl font-semibold mb-2">Welcome</h2>
+            <p class="text-slate-600 text-sm leading-relaxed mb-6">
+                Chemistry Companion is an integrated research workbench for molecular analysis,
+                docking, and medicinal chemistry. This short setup prepares your workspace and optional AI features
+                so you can start working immediately — no manual configuration files required.
+            </p>
+            <div class="grid sm:grid-cols-2 gap-3 mb-8 text-sm">
+                <div class="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                    <div class="font-semibold text-slate-800 mb-1">Research tools</div>
+                    <ul class="text-slate-600 space-y-0.5 text-xs">
+                        <li>• Virtual Screening</li>
+                        <li>• MedChem Workbench</li>
+                        <li>• ADMET &amp; Developability</li>
+                        <li>• Lead Optimization</li>
+                    </ul>
+                </div>
+                <div class="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                    <div class="font-semibold text-slate-800 mb-1">Also included</div>
+                    <ul class="text-slate-600 space-y-0.5 text-xs">
+                        <li>• Research OS</li>
+                        <li>• Publication Assistant</li>
+                        <li>• Knowledge Engine</li>
+                        <li>• Spectra &amp; docking workspace</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button type="button" class="fre-btn fre-btn-primary" @click="step = 2">Begin Setup</button>
+                <button type="button" class="fre-btn fre-btn-secondary" @click="skipSetup()" :disabled="busy">
+                    Skip <span class="font-normal text-slate-500">(limited functionality)</span>
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mt-4">You can re-run this wizard anytime from Settings → Setup Wizard.</p>
+        </div>
+
+        <!-- STEP 2 Workspace -->
+        <div x-show="step === 2">
+            <h2 class="text-xl font-semibold mb-2">Workspace configuration</h2>
+            <p class="text-slate-600 text-sm mb-6">Choose where Chemistry Companion stores data. Defaults are safe for first use.</p>
+            <div class="space-y-4">
+                <template x-for="field in pathFields" :key="field.key">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1" x-text="field.label"></label>
+                        <input type="text" class="fre-input font-mono text-xs" x-model="paths[field.key]">
+                        <p class="text-[11px] text-slate-400 mt-1" x-text="field.hint"></p>
+                    </div>
+                </template>
+            </div>
+            <p class="text-xs mt-4" :class="dirMsg.ok ? 'text-emerald-600' : 'text-amber-700'" x-text="dirMsg.text" x-show="dirMsg.text"></p>
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 1">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="savePathsAndContinue()" :disabled="busy">Continue</button>
+            </div>
+        </div>
+
+        <!-- STEP 3 AI Provider -->
+        <div x-show="step === 3">
+            <h2 class="text-xl font-semibold mb-2">AI provider</h2>
+            <p class="text-slate-600 text-sm mb-5">Optional. Choose how AI explanations are powered — or disable AI entirely.</p>
+            <div class="space-y-3">
+                <template x-for="p in providers" :key="p.id">
+                    <div class="fre-provider" :class="provider === p.id && 'active'" @click="provider = p.id">
+                        <div class="flex items-start gap-3">
+                            <input type="radio" class="mt-1" :checked="provider === p.id" @change="provider = p.id">
+                            <div>
+                                <div class="font-semibold text-sm" x-text="p.name"></div>
+                                <div class="text-xs text-slate-600 mt-0.5" x-text="p.blurb"></div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 2">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="goAfterProvider()">Continue</button>
+            </div>
+        </div>
+
+        <!-- STEP 4 API keys -->
+        <div x-show="step === 4">
+            <h2 class="text-xl font-semibold mb-2">API key configuration</h2>
+            <p class="text-slate-600 text-sm mb-5">Keys stay on this computer in your local configuration file. They are never shown in logs.</p>
+
+            <!-- OpenRouter -->
+            <div class="space-y-3" x-show="provider === 'openrouter'">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">API Key</label>
+                    <input type="password" class="fre-input mt-1" autocomplete="off" x-model="apiKey" placeholder="sk-or-…">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Base URL</label>
+                    <input type="text" class="fre-input mt-1 font-mono text-xs" x-model="baseUrl">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Model</label>
+                    <input type="text" class="fre-input mt-1 font-mono text-xs" x-model="model">
+                </div>
+            </div>
+
+            <!-- OpenAI -->
+            <div class="space-y-3" x-show="provider === 'openai'">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">API Key</label>
+                    <input type="password" class="fre-input mt-1" autocomplete="off" x-model="apiKey" placeholder="sk-…">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Model</label>
+                    <input type="text" class="fre-input mt-1 font-mono text-xs" x-model="model">
+                </div>
+            </div>
+
+            <!-- Groq -->
+            <div class="space-y-3" x-show="provider === 'groq'">
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">API Key</label>
+                    <input type="password" class="fre-input mt-1" autocomplete="off" x-model="apiKey" placeholder="gsk_…">
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Model</label>
+                    <input type="text" class="fre-input mt-1 font-mono text-xs" x-model="model">
+                </div>
+            </div>
+
+            <!-- Ollama -->
+            <div class="space-y-3" x-show="provider === 'ollama'">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Host</label>
+                        <input type="text" class="fre-input mt-1" x-model="ollamaHost">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-slate-500 uppercase">Port</label>
+                        <input type="number" class="fre-input mt-1" x-model.number="ollamaPort">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-semibold text-slate-500 uppercase">Model</label>
+                    <input type="text" class="fre-input mt-1 font-mono text-xs" x-model="model">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-5">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="testAi()" :disabled="busy">Test Connection</button>
+                <span class="text-sm" :class="aiTest.ok ? 'text-emerald-600' : 'text-amber-700'" x-text="aiTest.message"></span>
+            </div>
+
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 3">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="step = 5">Continue</button>
+            </div>
+        </div>
+
+        <!-- STEP 5 Tools -->
+        <div x-show="step === 5">
+            <h2 class="text-xl font-semibold mb-2">Scientific tools</h2>
+            <p class="text-slate-600 text-sm mb-5">Automatic detection. Missing tools do not block setup — they only limit related features.</p>
+            <div class="space-y-3" x-show="!toolsLoading">
+                <template x-for="t in tools" :key="t.id">
+                    <div class="rounded-lg border border-slate-200 p-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="font-semibold text-sm" x-text="t.name"></div>
+                            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                  :class="t.status === 'installed' ? 'fre-badge-ok' : 'fre-badge-miss'"
+                                  x-text="t.status === 'installed' ? 'Installed' : 'Missing'"></span>
+                        </div>
+                        <div class="text-xs text-slate-500 mt-1" x-show="t.version">
+                            Version: <span class="font-mono" x-text="t.version"></span>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-0.5 truncate" x-show="t.location" :title="t.location">
+                            <span x-text="t.location"></span>
+                        </div>
+                        <div class="text-xs text-amber-800 mt-2" x-show="t.status !== 'installed'" x-text="t.impact_if_missing"></div>
+                    </div>
+                </template>
+            </div>
+            <p class="text-sm text-slate-500" x-show="toolsLoading">Detecting tools…</p>
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = (provider === 'disabled' ? 3 : 4)">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="step = 6">Continue</button>
+            </div>
+        </div>
+
+        <!-- STEP 6 Optional -->
+        <div x-show="step === 6">
+            <h2 class="text-xl font-semibold mb-2">Optional extras</h2>
+            <p class="text-slate-600 text-sm mb-5">Everything on this page is optional.</p>
+            <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50">
+                <input type="checkbox" class="mt-1" x-model="downloadSamples">
+                <div>
+                    <div class="font-semibold text-sm">Download sample datasets</div>
+                    <div class="text-xs text-slate-500">Copy benchmark molecules and spectra samples into your outputs folder.</div>
+                </div>
+            </label>
+            <div class="mt-4 space-y-2 text-sm">
+                <a href="/docs" target="_blank" class="block text-sci-blue hover:underline">Open documentation</a>
+                <p class="text-xs text-slate-400">Recommended local models (Ollama): install separately via the Ollama app if you chose local AI.</p>
+            </div>
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 5">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="step = 7">Continue</button>
+            </div>
+        </div>
+
+        <!-- STEP 7 Summary -->
+        <div x-show="step === 7">
+            <h2 class="text-xl font-semibold mb-2">Configuration summary</h2>
+            <p class="text-slate-600 text-sm mb-5">Review your choices before finishing.</p>
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Database</dt>
+                    <dd class="font-mono text-xs text-right break-all" x-text="paths.database_path"></dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Outputs</dt>
+                    <dd class="font-mono text-xs text-right break-all" x-text="paths.output_path"></dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Logs</dt>
+                    <dd class="font-mono text-xs text-right break-all" x-text="paths.log_path"></dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">Workspace</dt>
+                    <dd class="font-mono text-xs text-right break-all" x-text="paths.workspace_path"></dd>
+                </div>
+                <div class="flex justify-between gap-4 border-b border-slate-100 pb-2">
+                    <dt class="text-slate-500">AI Provider</dt>
+                    <dd class="font-semibold" x-text="providerLabel()"></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-slate-500">Scientific tools</dt>
+                    <dd class="text-xs text-right" x-text="toolsSummary()"></dd>
+                </div>
+            </dl>
+            <div class="flex justify-between mt-8">
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 6">Back</button>
+                <button type="button" class="fre-btn fre-btn-primary" @click="finish(false)" :disabled="busy">Finish</button>
+            </div>
+            <p class="text-xs text-amber-700 mt-4" x-show="overwritePrompt">
+                A configuration file already exists.
+                <button type="button" class="underline font-semibold" @click="finish(true)" :disabled="busy">Update existing configuration</button>
+            </p>
+            <p class="text-sm mt-3" :class="finishMsg.ok ? 'text-emerald-600' : 'text-amber-700'" x-text="finishMsg.text"></p>
+        </div>
+
+        <!-- STEP 8/9 combined Validation result (shown after finish) -->
+        <div x-show="step === 9">
+            <h2 class="text-xl font-semibold mb-2">Validation</h2>
+            <p class="text-slate-600 text-sm mb-5">Checking that your workspace is ready.</p>
+            <div class="space-y-2">
+                <template x-for="c in validation.checks" :key="c.name">
+                    <div class="flex items-start justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                        <div>
+                            <div class="font-medium" x-text="c.name"></div>
+                            <div class="text-xs text-slate-500" x-text="c.detail"></div>
+                        </div>
+                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                              :class="c.ok ? 'fre-badge-ok' : 'fre-badge-miss'"
+                              x-text="c.ok ? 'OK' : 'Check'"></span>
+                    </div>
+                </template>
+            </div>
+            <div class="mt-6 p-4 rounded-xl"
+                 :class="validation.ok ? 'bg-emerald-50 border border-emerald-100' : 'bg-amber-50 border border-amber-100'">
+                <div class="font-semibold" x-text="validation.ready_message"></div>
+                <p class="text-sm text-slate-600 mt-1" x-show="validation.ok">
+                    Chemistry Companion is configured and ready to use.
+                </p>
+            </div>
+            <div class="flex justify-end mt-8">
+                <button type="button" class="fre-btn fre-btn-primary" @click="launchApp()" x-show="validation.ok">Launch Chemistry Companion</button>
+                <button type="button" class="fre-btn fre-btn-secondary" @click="step = 7" x-show="!validation.ok">Back</button>
+            </div>
+        </div>
+
+        <!-- STEP 10 is redirect -->
+    </div>
+
+    <p class="text-center text-xs text-slate-400 mt-8">MIT License · Configuration stays on this machine</p>
+</div>
+
+<script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+<script>
+function setupWizard() {
+    return {
+        step: 1,
+        busy: false,
+        version: '3.0.0',
+        paths: {
+            database_path: '',
+            output_path: '',
+            log_path: '',
+            workspace_path: '',
+        },
+        pathFields: [
+            { key: 'database_path', label: 'Database', hint: 'SQLite file used for history, projects, and research data.' },
+            { key: 'output_path', label: 'Outputs', hint: 'Generated files, exports, and docking artefacts.' },
+            { key: 'log_path', label: 'Logs', hint: 'Application log directory.' },
+            { key: 'workspace_path', label: 'Workspace', hint: 'Primary working folder for docking / screening outputs.' },
+        ],
+        providers: [],
+        provider: 'openrouter',
+        apiKey: '',
+        model: '',
+        baseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+        ollamaHost: '127.0.0.1',
+        ollamaPort: 11434,
+        tools: [],
+        toolsLoading: false,
+        downloadSamples: true,
+        dirMsg: { ok: true, text: '' },
+        aiTest: { ok: false, message: '' },
+        finishMsg: { ok: false, text: '' },
+        overwritePrompt: false,
+        validation: { ok: false, ready_message: '', checks: [] },
+
+        async init() {
+            try {
+                const res = await fetch('/api/setup/status');
+                const data = await res.json();
+                this.version = data.version || '3.0.0';
+                this.providers = data.providers || [];
+                if (data.paths) Object.assign(this.paths, data.paths);
+                this.provider = data.provider && data.provider !== 'template' ? data.provider : 'openrouter';
+                if (data.defaults) {
+                    this.baseUrl = data.defaults.openrouter_base_url || this.baseUrl;
+                    this.ollamaHost = data.defaults.ollama_host || this.ollamaHost;
+                    this.ollamaPort = data.defaults.ollama_port || this.ollamaPort;
+                    const models = data.defaults.models || {};
+                    this.model = models[this.provider] || models.openrouter || '';
+                }
+                if (data.models && data.models[this.provider]) {
+                    this.model = data.models[this.provider];
+                }
+            } catch (e) {
+                this.dirMsg = { ok: false, text: 'Could not load defaults. You can still continue with the paths below.' };
+            }
+            this.$watch('provider', (val) => {
+                const map = {
+                    openrouter: 'deepseek/deepseek-v4-flash:free',
+                    openai: 'gpt-4o-mini',
+                    groq: 'llama-3.3-70b-versatile',
+                    ollama: 'llama3.2',
+                };
+                if (map[val]) this.model = map[val];
+                this.aiTest = { ok: false, message: '' };
+                this.apiKey = '';
+            });
+        },
+
+        async goAfterProvider() {
+            if (this.provider === 'disabled') {
+                await this.loadTools();
+                this.step = 5;
+            } else {
+                this.step = 4;
+            }
+        },
+
+        providerLabel() {
+            const p = (this.providers || []).find(x => x.id === this.provider);
+            return p ? p.name : this.provider;
+        },
+
+        toolsSummary() {
+            if (!this.tools.length) return 'Not scanned yet';
+            const ok = this.tools.filter(t => t.status === 'installed').length;
+            return `${ok} of ${this.tools.length} detected`;
+        },
+
+        async savePathsAndContinue() {
+            this.busy = true;
+            this.dirMsg = { ok: true, text: '' };
+            try {
+                const res = await fetch('/api/setup/ensure-dirs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.paths),
+                });
+                const data = await res.json();
+                this.dirMsg = {
+                    ok: !!data.ok,
+                    text: data.message || (data.ok ? 'Directories ready.' : 'Could not create directories.'),
+                };
+                if (data.ok) {
+                    this.step = 3;
+                    this.loadTools();
+                }
+            } catch (e) {
+                this.dirMsg = { ok: false, text: 'Could not create directories. Check the paths and try again.' };
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        async loadTools() {
+            this.toolsLoading = true;
+            try {
+                const res = await fetch('/api/setup/tools');
+                const data = await res.json();
+                this.tools = data.tools || [];
+            } catch (e) {
+                this.tools = [];
+            } finally {
+                this.toolsLoading = false;
+            }
+        },
+
+        async testAi() {
+            this.busy = true;
+            this.aiTest = { ok: false, message: 'Testing…' };
+            try {
+                const res = await fetch('/api/setup/test-ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: this.provider,
+                        api_key: this.apiKey,
+                        model: this.model,
+                        base_url: this.baseUrl,
+                        ollama_host: this.ollamaHost,
+                        ollama_port: this.ollamaPort,
+                    }),
+                });
+                const data = await res.json();
+                this.aiTest = { ok: !!data.ok, message: data.message || '' };
+            } catch (e) {
+                this.aiTest = { ok: false, message: 'Connection test failed. Check your settings and try again.' };
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        async finish(confirmOverwrite) {
+            this.busy = true;
+            this.finishMsg = { ok: false, text: '' };
+            this.overwritePrompt = false;
+            try {
+                if (this.step === 5 || !this.tools.length) await this.loadTools();
+                const res = await fetch('/api/setup/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paths: this.paths,
+                        provider: this.provider,
+                        api_key: this.apiKey,
+                        model: this.model,
+                        base_url: this.baseUrl,
+                        ollama_host: this.ollamaHost,
+                        ollama_port: this.ollamaPort,
+                        confirm_overwrite: !!confirmOverwrite,
+                        download_samples: this.downloadSamples,
+                        skip: false,
+                    }),
+                });
+                const data = await res.json();
+                if (data.needs_confirmation) {
+                    this.overwritePrompt = true;
+                    this.finishMsg = { ok: false, text: data.message || 'Confirm to update existing configuration.' };
+                    return;
+                }
+                if (!data.ok && !data.validation) {
+                    this.finishMsg = { ok: false, text: data.message || 'Could not save configuration.' };
+                    return;
+                }
+                this.validation = data.validation || { ok: data.ok, ready_message: data.message, checks: [] };
+                this.finishMsg = { ok: true, text: data.message || 'Configuration saved.' };
+                this.step = 9;
+            } catch (e) {
+                this.finishMsg = { ok: false, text: 'Could not save configuration. Check folder permissions and try again.' };
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        async skipSetup() {
+            this.busy = true;
+            try {
+                // Ensure default dirs
+                await fetch('/api/setup/ensure-dirs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.paths),
+                });
+                const res = await fetch('/api/setup/finish', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        paths: this.paths,
+                        provider: 'disabled',
+                        confirm_overwrite: true,
+                        download_samples: false,
+                        skip: true,
+                    }),
+                });
+                const data = await res.json();
+                if (data.ok || data.validation) {
+                    window.location.href = '/';
+                } else {
+                    this.dirMsg = { ok: false, text: data.message || 'Could not complete skip setup.' };
+                }
+            } catch (e) {
+                this.dirMsg = { ok: false, text: 'Could not complete skip setup.' };
+            } finally {
+                this.busy = false;
+            }
+        },
+
+        launchApp() {
+            window.location.href = '/';
+        },
+    }
+}
+</script>
+</body>
+</html>

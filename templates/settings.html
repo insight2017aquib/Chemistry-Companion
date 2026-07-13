@@ -1,7 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Settings — Chemistry Companion{% endblock %}
 {% block content %}
-<header class="mb-8"><h1 class="text-2xl font-bold text-[var(--cc-text)]">Settings</h1></header>
+<header class="mb-8">
+    <h1 class="text-2xl font-bold text-[var(--cc-text)]">Settings</h1>
+    <p class="text-sm text-slate-500 mt-1">Preferences and setup for Chemistry Companion.</p>
+</header>
+
+<div class="cc-card p-6 max-w-xl space-y-4 mb-6 border border-indigo-100 bg-indigo-50/40">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h2 class="text-sm font-semibold text-slate-800">Setup Wizard</h2>
+            <p class="text-xs text-slate-600 mt-1">
+                Re-run first-time setup to configure workspace folders, AI providers, and tool detection.
+                You will not be asked to edit configuration files by hand.
+            </p>
+        </div>
+        <a href="/setup?force=1"
+           class="shrink-0 inline-flex items-center px-3 py-2 rounded-md text-sm font-semibold text-white bg-sci-blue hover:bg-blue-700 transition">
+            Setup Wizard
+        </a>
+    </div>
+</div>
+
 <div class="cc-card p-6 max-w-xl space-y-6" x-data="{ theme: localStorage.getItem('cc-theme') || 'dark' }">
     <div>
         <label class="cc-metric-label block mb-2">Theme</label>
@@ -20,6 +40,151 @@
     </div>
     <div>
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked class="rounded text-indigo-500"> Include spectra by default</label>
+    </div>
+    
+    <hr class="border-border my-2">
+    
+    <div x-data="{ 
+        providers: [], 
+        activeProvider: 'auto',
+        isLoading: true,
+        init() {
+            this.fetchProviders();
+        },
+        async fetchProviders() {
+            try {
+                const [listRes, activeRes] = await Promise.all([
+                    fetch('/api/llm/providers'),
+                    fetch('/api/llm/provider')
+                ]);
+                this.providers = await listRes.json();
+                const activeData = await activeRes.json();
+                
+                // Check if we have a saved preference
+                const saved = localStorage.getItem('cc-llm-provider');
+                if (saved && saved !== 'auto') {
+                    this.activeProvider = saved;
+                    this.setProvider(saved);
+                } else {
+                    this.activeProvider = activeData.active;
+                }
+            } catch (e) {
+                console.error('Failed to load providers:', e);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        async setProvider(providerId) {
+            localStorage.setItem('cc-llm-provider', providerId);
+            try {
+                await fetch('/api/llm/provider', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider: providerId })
+                });
+                ChemistryUtils.showNotification('LLM Provider updated', 'success');
+            } catch (e) {
+                ChemistryUtils.showNotification('Failed to update provider', 'error');
+            }
+        }
+    }">
+        <div class="flex items-center justify-between mb-2">
+            <label class="cc-metric-label">AI Explanation Provider</label>
+            <span x-show="isLoading" class="text-xs text-slate-500">Loading...</span>
+        </div>
+        <select class="cc-input" x-model="activeProvider" @change="setProvider(activeProvider)" :disabled="isLoading">
+            <option value="auto">Auto (Config Default / Fallback)</option>
+            <template x-for="p in providers" :key="p.id">
+                <option :value="p.id" x-text="`${p.display_name} ${p.available ? '' : '(No API Key)'}`" :disabled="!p.available"></option>
+            </template>
+        </select>
+        <p class="text-xs text-slate-500 mt-2">
+            Prefer <a href="/setup?force=1" class="text-sci-blue hover:underline">Setup Wizard</a>
+            to configure AI providers safely. Keys are stored only on this machine.
+        </p>
+        <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+             x-show="providers.length && providers.every(p => !p.available)">
+            <strong>AI Provider Not Configured.</strong>
+            Chemistry Companion can continue without AI features.
+            <a href="/setup?force=1" class="font-semibold underline">Configure AI</a> to enable assistance.
+        </div>
+    </div>
+
+    <!-- External Tools: ChimeraX Integration -->
+    <hr class="border-border my-2">
+
+    <div x-data="{
+        chimeraPath: '',
+        chimeraAvailable: false,
+        isLoading: true,
+        async init() {
+            await this.fetchStatus();
+        },
+        async fetchStatus() {
+            try {
+                const res = await fetch('/api/external-tools/chimera');
+                const data = await res.json();
+                this.chimeraPath = data.path || '';
+                this.chimeraAvailable = data.available;
+            } catch (e) {
+                console.error('Failed to load ChimeraX config:', e);
+            } finally {
+                this.isLoading = false;
+            }
+        },
+        async savePath() {
+            try {
+                const res = await fetch('/api/external-tools/chimera', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: this.chimeraPath || null })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    this.chimeraAvailable = data.available || false;
+                    ChemistryUtils.showNotification(
+                        this.chimeraPath ? 'ChimeraX path saved' : 'ChimeraX path cleared',
+                        'success'
+                    );
+                } else {
+                    throw new Error('Failed to save');
+                }
+            } catch (e) {
+                ChemistryUtils.showNotification('Failed to save ChimeraX path', 'error');
+            }
+        },
+        clearPath() {
+            this.chimeraPath = '';
+            this.savePath();
+        }
+    }">
+        <div class="flex items-center justify-between mb-2">
+            <label class="cc-metric-label">ChimeraX / Chimera Executable</label>
+            <span x-show="isLoading" class="text-xs text-slate-500">Loading...</span>
+            <span x-show="!isLoading && chimeraAvailable" class="text-xs px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded">Found</span>
+            <span x-show="!isLoading && !chimeraAvailable && chimeraPath" class="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 rounded">Not found</span>
+        </div>
+
+        <div class="flex gap-2">
+            <input 
+                type="text" 
+                class="cc-input flex-1 font-mono text-sm" 
+                placeholder="C:\Program Files\ChimeraX\bin\ChimeraX.exe"
+                x-model="chimeraPath"
+                @blur="savePath()"
+            >
+            <button 
+                @click="clearPath()" 
+                class="px-3 py-1 text-sm border border-border rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                :disabled="!chimeraPath">
+                Clear
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-500 mt-2">
+            Path to ChimeraX (recommended) or classic Chimera. 
+            Used for the "Open in ChimeraX" feature in docking results.
+        </p>
     </div>
 </div>
 {% endblock %}

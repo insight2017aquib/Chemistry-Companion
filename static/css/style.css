@@ -15,6 +15,19 @@
     transition: all 0.2s ease;
 }
 
+/* WebGL viewer containers and canvases must never transition —
+   framebuffer dimensions must be stable at render time.
+   The wildcard rule above would otherwise animate width/height
+   during Alpine x-show toggles, causing GL_INVALID_FRAMEBUFFER_OPERATION. */
+#protein-3d-viewer,
+#protein-3d-viewer canvas,
+#ligand-3d-viewer,
+#ligand-3d-viewer canvas,
+#complex-3d-viewer,
+#complex-3d-viewer canvas {
+    transition: none !important;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
 }

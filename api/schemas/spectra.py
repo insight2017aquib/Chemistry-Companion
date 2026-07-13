@@ -38,7 +38,7 @@ class IRPredictionResponse(BaseModel):
     is_heuristic: bool = Field(True, description="Is heuristic prediction")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecule": {"smiles": "c1ccccc1"},
                 "smiles": "c1ccccc1",
@@ -71,7 +71,7 @@ class ProtonNMRResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Prediction warnings")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecule": {"smiles": "c1ccccc1"},
                 "smiles": "c1ccccc1",
@@ -92,7 +92,7 @@ class CarbonNMRResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Prediction warnings")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecule": {"smiles": "c1ccccc1"},
                 "smiles": "c1ccccc1",

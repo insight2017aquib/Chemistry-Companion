@@ -302,13 +302,42 @@ def _resolve_name_via_pubchem_fuzzy(name: str, timeout: int = 5) -> Optional[str
     return None
 
 
-def _resolve_name_via_opsin(name: str, timeout: int = 6) -> Optional[str]:
-    """OPSIN REST service (University of Cambridge)."""
+def _resolve_name_via_py2opsin(name: str, timeout: int = 6) -> Optional[str]:
+    """Offline OPSIN via the bundled py2opsin jar (requires a JRE).
+
+    Deterministic and instant for systematic IUPAC names — no network needed.
+    Imported lazily so a missing package/JRE degrades gracefully to the online
+    resolvers. ``timeout`` is accepted for a uniform resolver signature but is
+    unused (py2opsin runs locally).
+    """
     try:
-        url = f"https://opsin.ch.cam.ac.uk/opsin/{quote(name)}.smiles"
-        resp = requests.get(url, timeout=timeout)
+        from py2opsin import py2opsin
+    except Exception as exc:  # noqa: BLE001 - missing dependency is non-fatal
+        logger.debug("py2opsin unavailable (%s); falling back to online resolvers", exc)
+        return None
+    try:
+        smiles = py2opsin(name, output_format="SMILES")
+        if smiles and smiles.strip():
+            return smiles.strip()
+    except Exception as exc:  # noqa: BLE001 - OPSIN parse failure is non-fatal
+        logger.debug("py2opsin resolution failed for '%s': %s", name, exc)
+    return None
+
+
+def _resolve_name_via_opsin(name: str, timeout: int = 6) -> Optional[str]:
+    """OPSIN REST service (University of Cambridge) — online fallback.
+
+    Uses the base endpoint with an ``Accept: chemical/x-daylight-smiles`` header.
+    The older ``…/opsin/<name>.smiles`` URL-suffix form returns HTTP 404 for many
+    valid names, so it is intentionally not used here.
+    """
+    try:
+        url = f"https://opsin.ch.cam.ac.uk/opsin/{quote(name)}"
+        resp = requests.get(
+            url, timeout=timeout, headers={"Accept": "chemical/x-daylight-smiles"}
+        )
         if resp.status_code == 200 and resp.text.strip():
-            return resp.text.strip()
+            return resp.text.strip().splitlines()[0].strip()
     except Exception as exc:
         logger.debug("OPSIN resolution failed for %s: %s", name, exc)
     return None
@@ -402,11 +431,12 @@ def _resolve_name_to_smiles_with_source(
     """Try every name resolver in order; return (canonical_smiles, source_label).
 
     Resolution order:
-      1. PubChem direct
-      2. PubChem fuzzy  (synonyms + CID)
-      3. OPSIN REST
-      4. NCI Cactus     ← handles novel lab heterocycles
-      5. External IUPAC2Struct service  (requires IUPAC2STRUCT_URL env var)
+      1. py2opsin       ← offline OPSIN; instant for systematic IUPAC names
+      2. PubChem direct
+      3. PubChem fuzzy  (synonyms + CID)
+      4. OPSIN REST     (online fallback if py2opsin is unavailable)
+      5. NCI Cactus     ← handles novel lab heterocycles
+      6. External IUPAC2Struct service  (requires IUPAC2STRUCT_URL env var)
 
     Raises ValueError with a descriptive message when all resolvers fail.
     """
@@ -415,6 +445,7 @@ def _resolve_name_to_smiles_with_source(
         raise ValueError("Empty name provided")
 
     _steps = [
+        ("py2opsin",      lambda: _resolve_name_via_py2opsin(text, timeout=min(6, timeout))),
         ("pubchem",       lambda: _resolve_name_via_pubchem(text, timeout=min(5, timeout))),
         ("pubchem-fuzzy", lambda: _resolve_name_via_pubchem_fuzzy(text, timeout=min(6, timeout))),
         ("opsin",         lambda: _resolve_name_via_opsin(text, timeout=min(6, timeout))),
@@ -435,7 +466,7 @@ def _resolve_name_to_smiles_with_source(
         )
 
     raise ValueError(
-        f"Could not resolve name '{name}' via PubChem, OPSIN, Cactus or IUPAC2Struct."
+        f"Could not resolve name '{name}' via OPSIN, PubChem, Cactus or IUPAC2Struct."
     )
 
 

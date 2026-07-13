@@ -11,6 +11,7 @@ computing descriptors, spectra, or SMARTS matching.
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable, List
@@ -22,6 +23,32 @@ except ImportError:
     openbabel = None
     pybel = None
     _HAS_OPENBABEL = False
+
+
+def _ensure_openbabel_runtime_paths() -> None:
+    if not _HAS_OPENBABEL or openbabel is None:
+        return
+
+    module_file = getattr(openbabel, "__file__", None)
+    if not module_file:
+        return
+
+    package_root = Path(module_file).resolve().parent
+    current = os.environ.get("BABEL_DATADIR")
+    if current and (Path(current) / "UFF.prm").exists():
+        return
+
+    for candidate in (
+        package_root / "bin" / "data",
+        package_root / "share" / "openbabel" / "3.1.0",
+    ):
+        if (candidate / "UFF.prm").exists():
+            os.environ["BABEL_DATADIR"] = str(candidate)
+            return
+
+
+_ensure_openbabel_runtime_paths()
+
 
 def _check_openbabel():
     if not _HAS_OPENBABEL:

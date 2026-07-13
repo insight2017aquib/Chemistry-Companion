@@ -23,6 +23,8 @@ Resolver helpers are available directly:
 
 from .config import (
     ChemistryCompanionSettings,
+    LLMProvider,
+    LLMSettings,
     get_settings,
     reset_settings_cache,
 )
@@ -65,6 +67,20 @@ from .spectra_validation import (
     validate_spectra_workflow,
 )
 from .visualization_utils import save_2d_image
+from .llm_utils import (
+    LLMExplanation,
+    LLMErrorKind,
+    generate_explanation,
+    explain_descriptors,
+    explain_docking,
+    explain_spectra,
+    get_available_providers,
+    get_active_provider,
+    set_primary_provider,
+    reset_primary_provider,
+    clear_explanation_cache,
+    get_cache_size,
+)
 
 
 def get_pipeline_classes():
@@ -89,6 +105,10 @@ __all__ = [
     "DescriptorBenchmarkSummary",
     "DescriptorComparison",
     "DescriptorRecord",
+    "LLMErrorKind",
+    "LLMExplanation",
+    "LLMProvider",
+    "LLMSettings",
     "MoleculeInput",
     "MoleculeRecord",
     "DockingValidationRecord",
@@ -100,21 +120,31 @@ __all__ = [
     "benchmark_from_csv",
     "benchmark_molecule",
     "benchmark_summary",
+    "clear_explanation_cache",
     "compute_rdkit_reference_descriptors",
     "build_markdown_report",
     "compute_descriptors",
+    "explain_descriptors",
+    "explain_docking",
+    "explain_spectra",
     "export_benchmark_report",
     "export_spectra_validation_report",
+    "generate_explanation",
+    "get_active_provider",
+    "get_available_providers",
+    "get_cache_size",
     "get_logger",
     "get_pipeline_classes",
     "get_settings",
     "load_molecule",
     "plot_spectra_validation_report",
     "prepare_docking_structure",
+    "reset_primary_provider",
     "reset_settings_cache",
     "resolve_molecule_input",
     "resolve_name_to_smiles",
     "save_2d_image",
+    "set_primary_provider",
     "set_verbosity",
     "smiles_to_iupac_name",
     "summarise_descriptors",

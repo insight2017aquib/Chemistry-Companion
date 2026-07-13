@@ -1,100 +1,375 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Chemistry Companion{% endblock %}
+
+{% block title %}Dashboard - Chemistry Companion{% endblock %}
+
 {% block content %}
-<header class="mb-8">
-    <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Chemistry Companion Workbench</h1>
-    <p class="text-slate-500 mt-2">Publication-Grade Cheminformatics & Spectral Prediction Engine</p>
-</header>
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold bg-gradient-to-r from-sci-blue to-blue-600 bg-clip-text text-transparent">
+            Molecular Analysis & Docking Workbench
+        </h1>
+        <p class="mt-2 text-slate-600">Comprehensive chemical characterization, spectral prediction, and AI-assisted docking</p>
+    </div>
 
-<div class="card p-6 mb-8">
-    <h2 class="text-xl font-bold mb-4">Quick Workbench</h2>
-    <form hx-post="/analyse" hx-target="#dashboard-workbench" hx-indicator="#dashboard-loading" class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium mb-1">SMILES or Name</label>
-            <input type="text" name="input_text" class="w-full border border-border rounded p-2 text-sm bg-bg" required placeholder="e.g. CC(=O)Oc1ccccc1C(=O)O">
-            <input type="hidden" name="input_method" value="smiles">
+    <!-- Quick Action Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Single Analysis -->
+        <a href="/analysis" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">1</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">Single Analysis</h3>
+                    <p class="text-sm text-slate-500 mt-1">Analyze individual molecules</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </div>
+        </a>
+
+        <!-- Batch Processing -->
+        <a href="/batch" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">∞</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">Batch Processing</h3>
+                    <p class="text-sm text-slate-500 mt-1">Process multiple molecules</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+        </a>
+
+        <!-- Docking Workspace -->
+        <a href="/docking-workspace" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">🧬</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">Docking</h3>
+                    <p class="text-sm text-slate-500 mt-1">AI-assisted workspace</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                </svg>
+            </div>
+        </a>
+
+        <!-- History -->
+        <a href="/history" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">⏱</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">History</h3>
+                    <p class="text-sm text-slate-500 mt-1">View past analyses</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+        </a>
+
+        <!-- Virtual Screening -->
+        <a href="/virtual-screening" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">🔬</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">Virtual Screening</h3>
+                    <p class="text-sm text-slate-500 mt-1">High-throughput docking</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+            </div>
+        </a>
+
+        <!-- Molecular Viewer (reuses existing /visualization infrastructure) -->
+        <a href="/visualization" class="group bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 hover:border-sci-blue transition-all p-6 cursor-pointer">
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-sci-blue">🔭</div>
+                    <h3 class="text-lg font-semibold mt-2 text-slate-900">Molecular Viewer</h3>
+                    <p class="text-sm text-slate-500 mt-1">2D/3D ligand, protein & complex viewer</p>
+                </div>
+                <svg class="w-8 h-8 text-sci-blue/20 group-hover:text-sci-blue/40 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l-4 4m0 0l-4-4m4 4V3m0 11v6m-7-3h14" />
+                </svg>
+            </div>
+        </a>
+
+        <!-- MedChem Workbench (Phase 9) -->
+        <a href="/medchem" class="block group">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full transition-all duration-300 hover:shadow-md hover:border-slate-300 relative overflow-hidden">
+                <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">MedChem Workbench</h3>
+                <p class="text-sm text-slate-500">Analyze SAR, explore bioisosteres, and optimize lead series using rule-based transformations and AI.</p>
+            </div>
+        </a>
+        
+        <!-- ADMET Developability (Phase 10) -->
+        <a href="/admet" class="block group">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full transition-all duration-300 hover:shadow-md hover:border-slate-300 relative overflow-hidden">
+                <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">ADMET & Developability</h3>
+                <p class="text-sm text-slate-500">Predict liabilities, analyze drug-likeness, flag toxicophores, and assess overall series developability.</p>
+            </div>
+        </a>
+        
+        <!-- Lead Optimization Studio (Phase 11) -->
+        <a href="/lead-opt" class="block group">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 h-full transition-all duration-300 hover:shadow-md hover:border-slate-300 relative overflow-hidden">
+                <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">Lead Optimization Studio</h3>
+                <p class="text-sm text-slate-500">Manage portfolios, track campaigns, compute MPO desirability scores, and log optimization decisions.</p>
+            </div>
+        </a>
+
+        <!-- Research Operating System (Phase 12) -->
+        <a href="/research-os" class="block group lg:col-span-1">
+            <div class="bg-slate-900 rounded-xl shadow-sm border border-slate-800 p-6 h-full transition-all duration-300 hover:shadow-md relative overflow-hidden text-white">
+                <div class="w-12 h-12 bg-slate-800 text-white rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Research Operating System</h3>
+                <p class="text-sm text-slate-400">Master Project Hub. Track literature, log notebook entries, view knowledge graphs, and generate thesis reports.</p>
+            </div>
+        </a>
+        
+        <!-- Publication & Thesis Assistant (Phase 13) -->
+        <a href="/publication" class="block group lg:col-span-1">
+            <div class="bg-teal-900 rounded-xl shadow-sm border border-teal-800 p-6 h-full transition-all duration-300 hover:shadow-md relative overflow-hidden text-white">
+                <div class="w-12 h-12 bg-teal-800 text-white rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Publication & Thesis</h3>
+                <p class="text-sm text-teal-100/70">Export tables and draft evidence-linked manuscripts.</p>
+            </div>
+        </a>
+        
+        <!-- Scientific Knowledge Engine (Phase 14) -->
+        <a href="/knowledge" class="block group lg:col-span-1">
+            <div class="bg-fuchsia-900 rounded-xl shadow-sm border border-fuchsia-800 p-6 h-full transition-all duration-300 hover:shadow-md relative overflow-hidden text-white">
+                <div class="w-12 h-12 bg-fuchsia-800 text-white rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold mb-2">Scientific Knowledge</h3>
+                <p class="text-sm text-fuchsia-100/70">Extract cross-project patterns, score lessons learned, and query the AI Librarian.</p>
+            </div>
+        </a>
+    </div>
+
+    <!-- Clean Visualization Section (Protein + Ligand support) -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-8">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h2 class="text-2xl font-bold">Visualization</h2>
+                <p class="text-sm text-slate-500 mt-1">Quick access to interactive 3D viewers for proteins and ligands (powered by the full Molecular Viewer).</p>
+            </div>
+            <a href="/visualization" class="text-sm font-medium text-sci-blue hover:underline">Open full Molecular Viewer →</a>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-            <button type="submit" class="btn-primary">Run Quick Analysis</button>
-            <button type="reset" class="btn-secondary">Clear</button>
+
+        <!-- Tab-like cards for Protein and Ligand -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Protein Tab/Card -->
+            <div class="group border border-slate-200 rounded-xl p-6 hover:border-sci-blue transition-all">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-xl">🧬</div>
+                    <div>
+                        <div class="font-semibold text-lg">Protein Viewer</div>
+                        <div class="text-xs text-slate-500">PDB / PDBQT • 3Dmol.js + Mol*</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-600 mb-4">Upload a protein structure (PDB or prepared PDBQT). Supports chain selection, surfaces, ligands, and measurements.</p>
+                <div class="flex gap-2">
+                    <a href="/visualization" class="flex-1 inline-flex justify-center items-center rounded-md bg-sci-blue text-white px-4 py-2 text-sm font-medium hover:bg-blue-700 transition">Open Protein Viewer</a>
+                    <a href="/docking-workspace" class="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Use in Docking Prep</a>
+                </div>
+            </div>
+
+            <!-- Ligand Tab/Card -->
+            <div class="group border border-slate-200 rounded-xl p-6 hover:border-emerald-500 transition-all">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl">⬡</div>
+                    <div>
+                        <div class="font-semibold text-lg">Ligand Viewer</div>
+                        <div class="text-xs text-slate-500">SMILES / SDF / MOL2 • RDKit 2D + 3D</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-600 mb-4">Enter SMILES or upload a ligand file. Instant 2D structure + interactive 3D conformers.</p>
+                <div class="flex gap-2">
+                    <a href="/visualization" class="flex-1 inline-flex justify-center items-center rounded-md bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700 transition">Open Ligand Viewer</a>
+                    <a href="/docking-workspace" class="inline-flex items-center rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">Prepare for Docking</a>
+                </div>
+            </div>
         </div>
-    </form>
-    <div id="dashboard-workbench" class="mt-6"></div>
+
+        <div class="mt-4 text-[11px] text-slate-400">
+            Full page supports side-by-side protein + ligand, complex overlay, measurements, and export. Also available from the top navigation.
+        </div>
+    </div>
+
+    <!-- Quick Molecule Input (Restored HTMX Wiring) -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-8">
+        <h2 class="text-2xl font-bold mb-6">Quick Analysis</h2>
+        
+        <form hx-post="/analyse" hx-target="#dashboard-workbench" hx-indicator="#dashboard-loading" class="space-y-6">
+            <!-- Input Method Selection -->
+            <div class="flex gap-4 mb-6">
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="radio" name="input_method" value="smiles" checked class="w-4 h-4 text-sci-blue">
+                    <span class="text-sm font-medium">SMILES</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="radio" name="input_method" value="name" class="w-4 h-4 text-sci-blue">
+                    <span class="text-sm font-medium">Name/IUPAC</span>
+                </label>
+                <label class="flex items-center space-x-2 cursor-pointer">
+                    <input type="radio" name="input_method" value="inchi" class="w-4 h-4 text-sci-blue">
+                    <span class="text-sm font-medium">InChI</span>
+                </label>
+            </div>
+
+            <!-- Input Field -->
+            <div>
+                <label for="molecule-input" class="block text-sm font-medium text-slate-700 mb-2">
+                    Molecule Input
+                </label>
+                <textarea
+                    id="molecule-input"
+                    name="input_text"
+                    placeholder="Enter SMILES, molecule name, or InChI..."
+                    class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sci-blue focus:border-transparent font-mono text-sm resize-none"
+                    rows="4"
+                    required
+                ></textarea>
+            </div>
+
+            <!-- Example Buttons -->
+            <div>
+                <p class="text-sm font-medium text-slate-700 mb-3">Or select an example:</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <button type="button" class="example-btn px-3 py-2 bg-slate-100 hover:bg-sci-blue hover:text-white rounded transition-colors text-sm font-medium" data-smiles="c1ccccc1" data-name="Benzene">
+                        Benzene
+                    </button>
+                    <button type="button" class="example-btn px-3 py-2 bg-slate-100 hover:bg-sci-blue hover:text-white rounded transition-colors text-sm font-medium" data-smiles="CN1C=NC2=C1C(=O)N(C(=O)N2C)C" data-name="Caffeine">
+                        Caffeine
+                    </button>
+                    <button type="button" class="example-btn px-3 py-2 bg-slate-100 hover:bg-sci-blue hover:text-white rounded transition-colors text-sm font-medium" data-smiles="CC(=O)Oc1ccccc1C(=O)O" data-name="Aspirin">
+                        Aspirin
+                    </button>
+                    <button type="button" class="example-btn px-3 py-2 bg-slate-100 hover:bg-sci-blue hover:text-white rounded transition-colors text-sm font-medium" data-smiles="c1cc2cccnc2nc1" data-name="Quinoxaline">
+                        Quinoxaline
+                    </button>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-3 pt-6">
+                <button
+                    type="submit"
+                    class="px-6 py-2 bg-sci-blue text-white rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center gap-2"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    Analyze In-Place
+                </button>
+                <button
+                    type="reset"
+                    class="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium transition-colors"
+                    onclick="document.getElementById('dashboard-workbench').innerHTML = ''"
+                >
+                    Clear
+                </button>
+            </div>
+        </form>
+
+        <!-- HTMX Target -->
+        <div id="dashboard-loading" class="htmx-indicator mt-6 text-center text-slate-500 py-8">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-sci-blue border-t-transparent rounded-full mb-2"></div>
+            <p>Analyzing molecule...</p>
+        </div>
+        <div id="dashboard-workbench" class="mt-6"></div>
+    </div>
+
+    <!-- Information Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Features -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-sci-blue" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                </svg>
+                Features
+            </h3>
+            <ul class="space-y-2 text-sm text-slate-600">
+                <li class="flex items-start gap-2">
+                    <span class="text-sci-blue">✓</span>
+                    <span>Molecular descriptors & properties</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-sci-blue">✓</span>
+                    <span>Functional group analysis</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-sci-blue">✓</span>
+                    <span>IR, ¹H NMR, ¹³C NMR prediction</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-sci-blue">✓</span>
+                    <span>AI-Assisted Docking Workflow</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="text-sci-blue">✓</span>
+                    <span>Batch processing & export</span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="bg-amber-50 rounded-lg border border-amber-200 p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-amber-900">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                </svg>
+                Important Notes
+            </h3>
+            <ul class="space-y-2 text-sm text-amber-800">
+                <li class="flex items-start gap-2">
+                    <span>⚠️</span>
+                    <span><strong>Heuristic Predictions:</strong> Spectral and property data are estimated.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span>⚠️</span>
+                    <span><strong>Educational Use:</strong> Results are for learning, not experimental validation.</span>
+                </li>
+                <li class="flex items-start gap-2">
+                    <span>⚠️</span>
+                    <span><strong>Docking Constraints:</strong> Ensure protein structures are properly prepared.</span>
+                </li>
+            </ul>
+        </div>
+    </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <div class="card p-6">
-        <h3 class="text-slate-500 text-sm font-medium">Recent Analyses</h3>
-        <p class="text-3xl font-bold mt-2">{{ stats.recent | default(0) }}</p>
-    </div>
-    <div class="card p-6">
-        <h3 class="text-slate-500 text-sm font-medium">Batch Jobs</h3>
-        <p class="text-3xl font-bold mt-2">{{ stats.batch | default(0) }}</p>
-    </div>
-    <div class="card p-6">
-        <h3 class="text-slate-500 text-sm font-medium">Exported Reports</h3>
-        <p class="text-3xl font-bold mt-2">{{ stats.exports | default(0) }}</p>
-    </div>
-    <div class="card p-6">
-        <h3 class="text-slate-500 text-sm font-medium">System Status</h3>
-        <p class="text-3xl font-bold mt-2 text-emerald-600">Online</p>
-    </div>
-</div>
+{% endblock %}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <div class="lg:col-span-2">
-        <h2 class="text-xl font-bold mb-4">Quick Start Workflow</h2>
-        <div class="card">
-            <div class="p-4 border-b border-border flex items-start gap-4">
-                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">1</div>
-                <div>
-                    <h3 class="font-bold text-base">Single Molecule Analysis</h3>
-                    <p class="text-sm text-slate-500 mt-1">Profile a SMILES for Descriptors, FGs, and Spectra.</p>
-                    <a href="/analysis" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Analysis &rarr;</a>
-                </div>
-            </div>
-            <div class="p-4 border-b border-border flex items-start gap-4">
-                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">2</div>
-                <div>
-                    <h3 class="font-bold text-base">Batch Profiling</h3>
-                    <p class="text-sm text-slate-500 mt-1">Upload a CSV to process thousands of compounds instantly.</p>
-                    <a href="/batch" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Batch &rarr;</a>
-                </div>
-            </div>
-            <div class="p-4 flex items-start gap-4">
-                <div class="bg-indigo-100 text-indigo-700 w-10 h-10 rounded flex items-center justify-center font-bold">3</div>
-                <div>
-                    <h3 class="font-bold text-base">Docking Preparation</h3>
-                    <p class="text-sm text-slate-500 mt-1">Generate 3D structures and assign Gasteiger charges (PDBQT).</p>
-                    <a href="/docking" class="text-primary hover:underline text-sm font-medium mt-2 inline-block">Go to Docking Prep &rarr;</a>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div>
-        <h2 class="text-xl font-bold mb-4">Recent History</h2>
-        <div class="card overflow-hidden">
-            {% if recent_items %}
-                <ul class="divide-y divide-border">
-                {% for item in recent_items %}
-                    <li class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                        <div class="flex justify-between items-center">
-                            <span class="font-mono text-xs truncate max-w-[150px]">{{ item.smiles }}</span>
-                            <span class="text-xs text-slate-400">{{ item.created_at.strftime('%H:%M') if item.created_at is not string else item.created_at[:5] if item.created_at else '' }}</span>
-                        </div>
-                    </li>
-                {% endfor %}
-                </ul>
-            {% else %}
-                <div class="p-8 text-center text-slate-500 text-sm">
-                    No recent analyses.
-                </div>
-            {% endif %}
-            <div class="p-3 bg-slate-50 dark:bg-slate-800 border-t border-border text-center">
-                <a href="/history" class="text-sm font-medium text-primary hover:underline">View all history</a>
-            </div>
-        </div>
-    </div>
-</div>
+{% block scripts %}
+<script>
+    // Example button handlers
+    document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('molecule-input').value = this.dataset.smiles;
+            document.querySelector('input[name="input_method"][value="smiles"]').checked = true;
+        });
+    });
+</script>
 {% endblock %}

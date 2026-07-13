@@ -1,7 +1,7 @@
 """
 api/routes/analysis.py
 ======================
-Molecule analysis API and HTMX handlers.
+FastAPI routes for molecule analysis.
 """
 
 from __future__ import annotations
@@ -9,29 +9,23 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from pathlib import Path
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from api.serializers import serialize_analysis_result
 from api.templating import create_templates
-from database.models import get_db
+from core.paths import templates_dir
 from services import AnalysisService
-from services.history_service import HistoryService
-from core.resolver import resolve_molecule_input
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 analysis_service = AnalysisService()
-history_service = HistoryService()
-
-templates = create_templates(Path(__file__).parent.parent.parent / "templates")
+templates = create_templates(templates_dir())
 
 
 class MoleculeInput(BaseModel):
+    """Input for molecule analysis."""
     smiles: Optional[str] = None
     inchi: Optional[str] = None
     iupac: Optional[str] = None
@@ -39,142 +33,89 @@ class MoleculeInput(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
+    """Request for complete molecule analysis."""
     molecule: MoleculeInput
     include_spectra: bool = True
     save_image: bool = False
-    save_history: bool = True
     export_formats: list[str] = []
 
 
-def _parse_molecule_input(
-    smiles: Optional[str] = None,
-    inchi: Optional[str] = None,
-    iupac: Optional[str] = None,
-    name: Optional[str] = None,
-    input_text: Optional[str] = None,
-    input_method: Optional[str] = None,
-) -> MoleculeInput:
-    """Normalize form/JSON inputs into MoleculeInput."""
-    if input_text and input_method:
-        text = input_text.strip()
-        if input_method == "smiles":
-            smiles = text
-        elif input_method == "inchi":
-            inchi = text
-        elif input_method in ("name", "iupac"):
-            iupac = text
-    return MoleculeInput(smiles=smiles, inchi=inchi, iupac=iupac, name=name)
+class AnalysisResponse(BaseModel):
+    """Analysis response."""
+    molecule: Dict[str, Any]
+    descriptors: Dict[str, Any]
+    functional_groups: Dict[str, Any]
+    spectra: Dict[str, Any] = {}
+    status: str = "success"
 
 
-def _run_analysis(
-    mol: MoleculeInput,
-    include_spectra: bool = True,
-    save_image: bool = False,
-) -> dict[str, Any]:
-    result = analysis_service.analyze_molecule(
-        smiles=mol.smiles,
-        inchi=mol.inchi,
-        iupac=mol.iupac,
-        name=mol.name,
-        include_spectra=include_spectra,
-        save_image=save_image,
-    )
-    if result.metadata.get("error"):
-        raise HTTPException(status_code=400, detail=result.metadata["error"])
-    if result.molecule is None:
-        raise HTTPException(status_code=400, detail="Could not parse molecule input")
-    return serialize_analysis_result(result)
+@router.post("/analyze", response_model=AnalysisResponse)
+async def analyze_molecule(request: AnalysisRequest) -> AnalysisResponse:
+    """
+    Analyze a single molecule.
 
-
-@router.post("/analyze")
-@router.post("/analyse")
-async def analyze_molecule_json(
-    request: Request,
-    db: Session = Depends(get_db),
-) -> Any:
-    """JSON or form-based analysis endpoint."""
-    content_type = request.headers.get("content-type", "").lower()
-    is_form = content_type.startswith("application/x-www-form-urlencoded") or content_type.startswith("multipart/form-data")
-
-    if is_form:
-        form = await request.form()
-        return await analyse_htmx_handler(
-            request,
-            db=db,
-            input_text=form.get("input_text", ""),
-            input_method=form.get("input_method", "smiles"),
-            name=form.get("name"),
-            include_spectra=form.get("include_spectra", "true") in ("true", "on", "1", True),
-            save_image=form.get("save_image", "false") in ("true", "on", "1", True),
-            atom_numbering=form.get("atom_numbering", "false") in ("true", "on", "1", True),
-            highlight_aromatic=form.get("highlight_aromatic", "false") in ("true", "on", "1", True),
-        )
-
+    Performs complete molecular analysis including descriptors,
+    functional groups, and spectral predictions.
+    """
     try:
-        payload = await request.json()
-        request_body = AnalysisRequest(**payload)
-        raw = analysis_service.analyze_molecule(
-            smiles=request_body.molecule.smiles,
-            inchi=request_body.molecule.inchi,
-            iupac=request_body.molecule.iupac,
-            name=request_body.molecule.name,
-            include_spectra=request_body.include_spectra,
-            save_image=request_body.save_image,
+        # Extract molecule input
+        mol_input = request.molecule
+        
+        # Run analysis
+        result = analysis_service.analyze_molecule(
+            smiles=mol_input.smiles,
+            inchi=mol_input.inchi,
+            iupac=mol_input.iupac,
+            name=mol_input.name,
+            include_spectra=request.include_spectra,
+            save_image=request.save_image,
+            export_formats=request.export_formats,
         )
-        if raw.metadata.get("error"):
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": raw.metadata["error"],
-                    "resolution": raw.metadata.get("resolution"),
-                },
-            )
-        if raw.molecule is None:
-            input_text = (
-                request_body.molecule.smiles or request_body.molecule.inchi or request_body.molecule.iupac or request_body.molecule.name or ""
-            )
-            resol = resolve_molecule_input(input_text) if input_text else None
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "message": "Could not parse molecule input",
-                    "resolution": getattr(resol, "__dict__", None),
-                },
-            )
-        if request_body.save_history:
-            history_service.save_analysis(db, raw)
-        return serialize_analysis_result(raw)
-    except HTTPException:
-        raise
+
+        # Format response
+        descriptors = result.descriptors or {}
+        fg_report = result.functional_group_report or {}
+        
+        return AnalysisResponse(
+            molecule={
+                "smiles": mol_input.smiles or "N/A",
+                "inchi": mol_input.inchi or "N/A",
+                "name": mol_input.name or "Unknown",
+                "formula": descriptors.get("formula", "N/A"),
+            },
+            descriptors={
+                "formula": descriptors.get("formula"),
+                "molecular_weight": descriptors.get("mol_weight"),
+                "exact_mass": descriptors.get("exact_mass"),
+                "logp": descriptors.get("logp"),
+                "tpsa": descriptors.get("tpsa"),
+                "hbd": descriptors.get("hbd"),
+                "hba": descriptors.get("hba"),
+                "rotatable_bonds": descriptors.get("rotatable_bonds"),
+                "ring_count": descriptors.get("ring_count"),
+            },
+            functional_groups={
+                "keys": fg_report.get("keys", []),
+                "names": fg_report.get("names", []),
+                "counts": fg_report.get("counts", {}),
+                "summary": fg_report.get("summary_text", ""),
+            },
+            spectra={
+                "ir": result.ir_prediction,
+                "proton_nmr": result.proton_nmr_prediction,
+                "carbon_nmr": result.carbon_nmr_prediction,
+            } if request.include_spectra else {},
+            status="success"
+        )
+
     except Exception as e:
-        logger.error("Analysis failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}") from e
-
-
-@router.post("/resolve")
-async def resolve_input(payload: dict) -> dict:
-    """Resolve an arbitrary input string to canonical SMILES and source info."""
-    text = payload.get("input_text") or payload.get("text") or ""
-    if not text:
-        return {"success": False, "error": "No input provided"}
-    try:
-        res = resolve_molecule_input(text)
-        return {
-            "success": bool(res.success),
-            "input": res.input_text,
-            "detected_type": res.detected_type,
-            "canonical_smiles": res.canonical_smiles,
-            "source": res.source,
-            "error": res.error,
-        }
-    except Exception as exc:
-        logger.debug("Resolve failed: %s", exc, exc_info=True)
-        return {"success": False, "error": str(exc)}
+        logger.error(f"Analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 async def analyse_htmx_handler(
     request: Request,
-    db: Session,
+    db=None,
     input_text: str = "",
     input_method: str = "smiles",
     name: Optional[str] = None,
@@ -183,93 +124,73 @@ async def analyse_htmx_handler(
     atom_numbering: bool = False,
     highlight_aromatic: bool = False,
 ):
-    """HTMX partial: run analysis and return results panel."""
-    mol = _parse_molecule_input(
-        name=name,
-        input_text=input_text,
-        input_method=input_method,
+    """Render the analysis result partial used by the HTMX frontend."""
+    text = (input_text or "").strip()
+    if not text:
+        return HTMLResponse(
+            '<div class="p-4 text-sm text-red-700">Please provide a molecule input.</div>',
+            status_code=400,
+        )
+
+    input_method = (input_method or "smiles").lower()
+    kwargs = {
+        "smiles": None,
+        "inchi": None,
+        "iupac": None,
+        "name": name,
+        "include_spectra": include_spectra,
+        "save_image": save_image,
+    }
+    if input_method in {"inchi", "iupac", "name"}:
+        kwargs[input_method] = text
+    else:
+        kwargs["smiles"] = text
+
+    result = analysis_service.analyze_molecule(**kwargs)
+    if not result.molecule:
+        message = result.metadata.get("error", "Analysis failed.")
+        return HTMLResponse(
+            f'<div class="p-4 text-sm text-red-700">{message}</div>',
+            status_code=200,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "components/analysis_results.html",
+        {"result": result},
     )
-    try:
-        raw = analysis_service.analyze_molecule(
-            smiles=mol.smiles,
-            inchi=mol.inchi,
-            iupac=mol.iupac,
-            name=mol.name,
-            include_spectra=include_spectra,
-            save_image=save_image,
-        )
-        if raw.metadata.get("error"):
-            return templates.TemplateResponse(
-                request,
-                "components/error_banner.html",
-                {
-                    "request": request,
-                    "message": raw.metadata["error"],
-                    "resolution": raw.metadata.get("resolution"),
-                },
-                status_code=400,
-            )
-        if raw.molecule is None:
-            return templates.TemplateResponse(
-                request,
-                "components/error_banner.html",
-                {"request": request, "message": "Could not parse molecule input"},
-                status_code=400,
-            )
-        history_service.save_analysis(db, raw)
-        payload = serialize_analysis_result(raw)
-        smiles = payload["molecule"].get("smiles", "")
-        import json
-        ir_bands = (payload.get("ir_prediction") or {}).get("bands", [])
-        return templates.TemplateResponse(
-            request,
-            "components/analysis_results.html",
-            {
-                "request": request,
-                "result": payload,
-                "export_json": json.dumps(payload),
-                "ir_bands_json": json.dumps(ir_bands),
-                "smiles": smiles,
-                "atom_numbering": atom_numbering,
-                "highlight_aromatic": highlight_aromatic,
-            },
-        )
-    except Exception as e:
-        logger.error("HTMX analysis failed: %s", e, exc_info=True)
-        return templates.TemplateResponse(
-            request,
-            "components/error_banner.html",
-            {"request": request, "message": str(e)},
-            status_code=500,
-        )
+
+
+@router.post("/analyse", response_class=HTMLResponse)
+async def analyse_htmx_route(request: Request):
+    """Compatibility endpoint for the existing HTMX single-analysis form."""
+    form = await request.form()
+    return await analyse_htmx_handler(
+        request,
+        input_text=form.get("input_text", ""),
+        input_method=form.get("input_method") or form.get("input_type", "smiles"),
+        name=form.get("name"),
+        include_spectra=form.get("include_spectra", "true") in ("true", "on", "1", True),
+        save_image=form.get("save_image", "") in ("true", "on", "1"),
+        atom_numbering=form.get("atom_numbering", "") in ("true", "on", "1"),
+        highlight_aromatic=form.get("highlight_aromatic", "") in ("true", "on", "1"),
+    )
+
+
 
 
 @router.get("/examples")
 async def get_example_molecules() -> Dict[str, Any]:
-    """Example molecules for quick selection."""
-    examples = analysis_service.get_example_molecules()
+    """
+    Get example molecules for quick selection.
+    """
     return {
         "examples": [
-            {"id": k, **v}
-            for k, v in examples.items()
-            if k in ("benzene", "caffeine", "aspirin", "quinoxaline")
+            {"name": "Benzene", "smiles": "c1ccccc1"},
+            {"name": "Caffeine", "smiles": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"},
+            {"name": "Aspirin", "smiles": "CC(=O)Oc1ccccc1C(=O)O"},
+            {"name": "Quinoxaline", "smiles": "c1cc2cccnc2nc1"},
+            {"name": "Ethanol", "smiles": "CCO"},
+            {"name": "Acetone", "smiles": "CC(=O)C"},
         ]
-    }
-
-
-@router.post("/funcgroups")
-async def functional_groups(request: AnalysisRequest) -> dict[str, Any]:
-    """Functional group analysis only."""
-    raw = analysis_service.analyze_molecule(
-        smiles=request.molecule.smiles,
-        inchi=request.molecule.inchi,
-        iupac=request.molecule.iupac,
-        name=request.molecule.name,
-        include_spectra=False,
-    )
-    payload = serialize_analysis_result(raw)
-    return {
-        "functional_groups": payload.get("functional_groups", {}),
-        "functional_group_report": payload.get("functional_group_report", {}),
-        "status": "success",
     }

@@ -1,16 +1,104 @@
 {% extends "base.html" %}
 {% block title %}Pose Analysis — Chemistry Companion{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/molstar@5.4.2/build/viewer/molstar.css">
+<style>
+    .molstar-container { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    .molstar-container .msp-plugin { position: absolute; inset: 0; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="space-y-6" x-data="poseAnalysis()">
     <header class="mb-4 flex justify-between items-end">
         <div>
             <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Pose Analysis &amp; AI Explanations</h1>
             <p class="text-slate-500 mt-2">Inspect binding poses, map protein-ligand interactions, and generate AI insights.</p>
+            <div x-show="jobId" class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Real data from your docking run — interactions computed geometrically (not mocked)</div>
         </div>
     </header>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Real Job Status Banner - Makes Phase 1 changes clearly visible -->
+    <div x-show="jobId"
+         class="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700 rounded-lg flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <div class="flex items-center gap-2">
+            <span class="inline-block w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span class="font-semibold text-emerald-700 dark:text-emerald-300">Real Docking Job Loaded</span>
+            <span class="font-mono text-emerald-600 dark:text-emerald-400 text-xs px-2 py-0.5 bg-white dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 rounded" x-text="jobId"></span>
+        </div>
+        <div class="text-emerald-600 dark:text-emerald-400 text-xs">
+            Using <strong>real computed interactions</strong> from the docking run (not demo data)
+        </div>
+        <div x-show="jobMetadata" class="text-xs text-emerald-700 dark:text-emerald-300 ml-auto">
+            <span x-text="jobMetadata?.receptor_name || 'Receptor'"></span> +
+            <span x-text="jobMetadata?.ligand_name || ligandSmiles || 'Ligand'"></span>
+        </div>
+    </div>
+
+    <!-- Status / feedback messages -->
+    <div x-show="statusMessage" class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-sm text-blue-700 dark:text-blue-300 flex justify-between items-center">
+        <span x-text="statusMessage"></span>
+        <button @click="statusMessage = ''" class="text-blue-500 hover:text-blue-700">×</button>
+    </div>
+
+    <!-- Error / fallback notice -->
+    <div x-show="loadError" class="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-sm text-amber-700 dark:text-amber-300">
+        <strong>Note:</strong> <span x-text="loadError"></span>
+    </div>
+
+    <!-- Professional Empty State — NO demo data ever shown -->
+    <div x-show="!jobId && !loading && poses.length === 0"
+         class="mb-8 p-8 bg-white dark:bg-slate-900 border border-border rounded-xl text-center">
+        <div class="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+            <span class="text-3xl">🧬</span>
+        </div>
+        <h2 class="text-2xl font-semibold text-slate-900 dark:text-white mb-2">No Docking Results Loaded</h2>
+        <p class="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-6">
+            This page displays <strong>real poses, interactions, and AI explanations</strong> only after you complete a docking run from the Docking Workspace.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <button @click="fetchRecentJobs()"
+                    class="btn-primary px-6 py-2.5 flex items-center justify-center gap-2"
+                    :disabled="loadingRecent">
+                <span x-show="!loadingRecent">Browse My Recent Docking Jobs</span>
+                <span x-show="loadingRecent">Loading jobs…</span>
+            </button>
+            <a href="/docking-workspace" class="btn-secondary px-6 py-2.5">Go to Docking Workspace</a>
+        </div>
+
+        <!-- Recent Jobs Picker -->
+        <div x-show="showRecentPicker" class="mt-8 text-left border-t border-border pt-6">
+            <div class="flex items-center justify-between mb-3">
+                <div class="font-semibold text-slate-700 dark:text-slate-300">Your Recent Docking Jobs</div>
+                <button @click="closeRecentPicker()" class="text-xs text-slate-500 hover:text-slate-700">Close</button>
+            </div>
+
+            <template x-if="recentJobs.length === 0 && !loadingRecent">
+                <div class="text-sm text-slate-500 py-4">No completed docking jobs found yet.</div>
+            </template>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-auto pr-1">
+                <template x-for="job in recentJobs" :key="job.id">
+                    <button @click="loadJobFromPicker(job)"
+                            class="text-left p-3 border border-border rounded-lg hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <div class="font-semibold text-sm" x-text="job.receptor_name || job.name || 'Receptor'"></div>
+                        <div class="text-xs text-slate-500 mt-0.5" x-text="job.ligand_name || (job.ligand_smiles ? job.ligand_smiles.substring(0, 28) + '…' : 'Ligand')"></div>
+                        <div class="flex justify-between items-end mt-2 text-xs">
+                            <span class="font-mono text-emerald-600 dark:text-emerald-400" x-text="job.best_affinity ? job.best_affinity + ' kcal/mol' : ''"></span>
+                            <span class="text-slate-400" x-text="job.num_poses ? job.num_poses + ' poses' : ''"></span>
+                        </div>
+                    </button>
+                </template>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-3">Click any job to load its real results.</div>
+        </div>
+    </div>
+
+    <!-- Main content grid: only shown when we actually have real job data -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+         x-show="jobId || poses.length > 0 || loading">
 
         <!-- Poses List Sidebar -->
         <div class="lg:col-span-1 space-y-6">
@@ -24,12 +112,15 @@
 
                 <div class="flex-1 overflow-y-auto space-y-2 pr-2">
                     <template x-for="pose in poses" :key="pose.rank">
-                        <div @click="selectPose(pose)"
-                             class="p-3 border rounded cursor-pointer transition-all flex justify-between items-center"
-                             :class="selectedPose?.rank === pose.rank ? 'border-primary bg-blue-50 dark:bg-blue-900/30' : 'border-border hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800'">
-                            <div>
-                                <span class="font-bold text-sm">Pose</span> <span class="text-primary font-black" x-text="pose.rank"></span>
-                                <div class="text-xs text-slate-500 mt-1">RMSD: <span x-text="pose.rmsd_lb"></span> – <span x-text="pose.rmsd_ub"></span></div>
+                        <div class="p-3 border rounded transition-all flex justify-between items-center"
+                             :class="isPoseSelected(pose) ? 'border-primary bg-blue-50 dark:bg-blue-900/30' : 'border-border bg-white dark:bg-slate-800'">
+                            <div class="flex items-start gap-3">
+                                <input type="checkbox" class="mt-1 rounded text-primary focus:ring-primary" :checked="isPoseSelected(pose)" @change="togglePose(pose)">
+                                <div>
+                                    <span class="font-bold text-sm cursor-pointer hover:text-primary" @click="togglePose(pose)">Pose <span class="text-primary font-black" x-text="pose.rank"></span></span>
+                                    <div class="text-xs text-slate-500 mt-1">RMSD: <span x-text="pose.rmsd_lb"></span> – <span x-text="pose.rmsd_ub"></span></div>
+                                    <div class="text-[10px] font-semibold text-emerald-600 mt-1" x-text="(poseInteractions[pose.rank]?.length || 0) + ' Interactions'"></div>
+                                </div>
                             </div>
                             <div class="text-right">
                                 <span class="text-lg font-bold text-emerald-600 dark:text-emerald-400" x-text="pose.affinity"></span>
@@ -40,16 +131,29 @@
                 </div>
 
                 <!-- Interaction Summary -->
-                <div class="mt-4 pt-4 border-t border-border">
-                    <h3 class="text-sm font-bold mb-2 text-slate-600 dark:text-slate-400">Interactions (Pose <span x-text="selectedPose?.rank ?? '–'"></span>)</h3>
-                    <ul class="text-xs space-y-1 text-slate-500">
-                        <template x-for="ia in interactions" :key="ia.protein_residue">
-                            <li class="flex justify-between">
-                                <span><strong x-text="ia.type"></strong> · <span x-text="ia.protein_residue"></span></span>
-                                <span x-text="ia.distance + ' Å'"></span>
-                            </li>
+                <div class="mt-4 pt-4 border-t border-border max-h-48 overflow-y-auto">
+                    <h3 class="text-sm font-bold mb-2 text-slate-600 dark:text-slate-400 sticky top-0 bg-white dark:bg-slate-900 pb-1">
+                        <span class="text-emerald-600 dark:text-emerald-400">Detected </span>Interactions
+                    </h3>
+                    <div x-show="selectedPoses.length === 0" class="text-xs text-slate-400">Select a pose to view interactions.</div>
+                    <div class="space-y-3">
+                        <template x-for="pose in selectedPoses" :key="'ia-'+pose.rank">
+                            <div>
+                                <div class="text-[10px] font-bold text-primary uppercase mb-1">Pose <span x-text="pose.rank"></span></div>
+                                <ul class="text-xs space-y-1 text-slate-500">
+                                    <template x-if="(poseInteractions[pose.rank] || []).length === 0">
+                                        <li class="text-slate-400">No interactions detected for this pose.</li>
+                                    </template>
+                                    <template x-for="(ia, idx) in (poseInteractions[pose.rank] || [])" :key="pose.rank + '-ia-' + idx">
+                                        <li class="flex justify-between border-b border-slate-100 dark:border-slate-800 pb-0.5">
+                                            <span><strong x-text="ia.type"></strong> · <span x-text="ia.protein_residue"></span></span>
+                                            <span x-text="formatDistance(ia.distance)"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
                         </template>
-                    </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -61,62 +165,122 @@
             <div class="card p-0 border border-border overflow-hidden">
                 <div class="p-4 bg-slate-50 dark:bg-slate-900 border-b border-border flex justify-between items-center">
                     <h2 class="text-lg font-bold">3D Interaction Mapping</h2>
-                    <div x-show="selectedPose" class="text-sm">
-                        Showing Pose <strong class="text-primary" x-text="selectedPose?.rank"></strong>
-                        · <span class="text-emerald-600 font-bold" x-text="selectedPose?.affinity + ' kcal/mol'"></span>
+                    <div class="flex items-center gap-2">
+                        <div x-show="selectedPoses.length > 0" class="text-sm bg-white dark:bg-slate-800 px-3 py-1 rounded shadow-sm border border-border">
+                            Showing <strong class="text-primary" x-text="selectedPoses.length"></strong> Pose(s)
+                            <span class="mx-2 text-slate-300">|</span>
+
+                        </div>
+
+                        <!-- Clean ChimeraX Integration Button -->
+                        <button
+                            x-show="jobId && selectedPoses.length > 0"
+                            @click="openInChimeraX(selectedPoses[0])"
+                            class="px-3 py-1 text-sm font-medium bg-orange-600 hover:bg-orange-700 text-white rounded-lg shadow-sm flex items-center gap-1.5 transition-all active:scale-[0.98]"
+                            :title="chimeraAvailable ? 'Launch this pose directly in ChimeraX' : 'Download a high-quality ChimeraX script for this pose'">
+                            <span>🧬</span>
+                            <span x-text="chimeraAvailable ? 'Launch in ChimeraX' : 'Open in ChimeraX'"></span>
+                        </button>
                     </div>
                 </div>
-                <div class="w-full h-[400px] bg-white rounded border border-border relative overflow-hidden" style="position: relative;">
-                    <div id="pose-3d-viewer" class="w-full h-full"></div>
-                    <div x-show="!selectedPose" class="absolute inset-0 flex items-center justify-center text-slate-400 font-bold bg-slate-100 dark:bg-slate-800">
-                        Select a pose to visualize the 3D binding mode.
+                <div class="w-full h-[500px] bg-slate-50 dark:bg-slate-950 rounded-b relative overflow-hidden">
+                    <div id="molstar-viewer-container" class="molstar-container z-10"></div>
+                    <div x-show="selectedPoses.length === 0" class="absolute inset-0 z-20 flex items-center justify-center text-slate-400 font-bold bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                        Select one or more poses to visualize in Mol*.
                     </div>
                 </div>
             </div>
 
-            <!-- LLM Explanation Panel (HTMX-powered) -->
-            <div class="card p-6 border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/10">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2">
-                        <span>✨</span> AI Pose Analyst
+            <!-- AI Docking Expert Panel (Phase 7) -->
+            <div class="card p-0 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-sm" x-data="{ expertTab: 'pose' }">
+                <!-- Header & Tabs -->
+                <div class="bg-indigo-50/50 dark:bg-indigo-900/10 p-4 border-b border-indigo-100 dark:border-indigo-800">
+                    <h2 class="text-lg font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-2 mb-4">
+                        <span>🤖</span> AI Docking Expert
                     </h2>
 
-                    <!-- HTMX "Explain with AI" button -->
-                    <form hx-post="/api/llm/explain_pose_htmx"
-                          hx-target="#llm-result"
-                          hx-swap="innerHTML"
-                          hx-indicator="#llm-spinner"
-                          class="flex items-center gap-2">
-                        <!-- Hidden fields carry the pose context to the server -->
-                        <input type="hidden" name="smiles"    :value="ligandSmiles">
-                        <input type="hidden" name="pose_rank" :value="selectedPose?.rank ?? 1">
-                        <input type="hidden" name="affinity"  :value="selectedPose?.affinity ?? 0">
-
-                        <button type="submit"
-                                class="btn-primary bg-indigo-600 hover:bg-indigo-700 border-indigo-600 shadow-sm flex items-center gap-2"
-                                :disabled="!selectedPose">
-                            <span>🤖</span> Explain with AI
+                    <div class="flex flex-wrap gap-2 text-sm font-medium">
+                        <button @click="expertTab = 'pose'" :class="expertTab === 'pose' ? 'bg-indigo-600 text-white shadow' : 'bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200'" class="px-3 py-1.5 rounded transition-colors">
+                            Explain Pose
                         </button>
-                    </form>
-                </div>
-
-                <!-- HTMX loading indicator -->
-                <div id="llm-spinner" class="htmx-indicator flex flex-col items-center justify-center py-8 text-indigo-400 space-y-4">
-                    <svg class="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span class="text-sm font-medium">Analyzing binding affinity and non-covalent interactions…</span>
-                </div>
-
-                <!-- LLM result is swapped in here by HTMX -->
-                <div id="llm-result" class="bg-white dark:bg-slate-900 rounded border border-indigo-100 dark:border-indigo-800 p-6 min-h-[120px]">
-                    <div class="text-center text-slate-400 py-4">
-                        <p class="text-sm">Select a pose and click <strong>"Explain with AI"</strong> to generate a medicinal chemistry interpretation.</p>
-                        <p class="text-xs mt-2 text-slate-300">Powered by OpenRouter · DeepSeek</p>
+                        <button @click="expertTab = 'compare'" :class="expertTab === 'compare' ? 'bg-blue-600 text-white shadow' : 'bg-white text-blue-600 hover:bg-blue-50 border border-blue-200'" class="px-3 py-1.5 rounded transition-colors" :disabled="selectedPoses.length < 2">
+                            Compare Poses
+                        </button>
+                        <button @click="expertTab = 'improve'" :class="expertTab === 'improve' ? 'bg-emerald-600 text-white shadow' : 'bg-white text-emerald-600 hover:bg-emerald-50 border border-emerald-200'" class="px-3 py-1.5 rounded transition-colors">
+                            Suggest Improvements
+                        </button>
+                        <button @click="expertTab = 'report'" :class="expertTab === 'report' ? 'bg-purple-600 text-white shadow' : 'bg-white text-purple-600 hover:bg-purple-50 border border-purple-200'" class="px-3 py-1.5 rounded transition-colors">
+                            Generate Report
+                        </button>
                     </div>
                 </div>
-            </div>
+
+                <!-- Action Area -->
+                <div class="p-5">
+                    <!-- Tab Forms -->
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="text-sm text-slate-500">
+                            <span x-show="expertTab === 'pose'">Analyze the interactions and binding mode of the selected pose.</span>
+                            <span x-show="expertTab === 'compare'">Highlight structural and energetic differences between selected poses.</span>
+                            <span x-show="expertTab === 'improve'">Get text-based SAR and medicinal chemistry optimization advice.</span>
+                            <span x-show="expertTab === 'report'">Synthesize a comprehensive Markdown report for this docking run.</span>
+                        </div>
+
+                        <!-- Dynamic HTMX Forms based on Tab -->
+                        <div>
+                            <!-- Explain Pose Form -->
+                            <form x-show="expertTab === 'pose'" hx-post="/api/llm/expert/pose" hx-target="#expert-result" hx-swap="innerHTML" hx-indicator="#expert-spinner">
+                                <input type="hidden" name="smiles" :value="ligandSmiles">
+                                <input type="hidden" name="poses_json" :value="JSON.stringify(selectedPoses)">
+                                <input type="hidden" name="interactions_json" :value="JSON.stringify(poseInteractions)">
+                                <button type="submit" class="btn-primary bg-indigo-600 hover:bg-indigo-700" :disabled="selectedPoses.length === 0">Analyze</button>
+                            </form>
+
+                            <!-- Compare Poses Form -->
+                            <form x-show="expertTab === 'compare'" hx-post="/api/llm/expert/compare" hx-target="#expert-result" hx-swap="innerHTML" hx-indicator="#expert-spinner">
+                                <input type="hidden" name="smiles" :value="ligandSmiles">
+                                <input type="hidden" name="poses_json" :value="JSON.stringify(selectedPoses)">
+                                <input type="hidden" name="interactions_json" :value="JSON.stringify(poseInteractions)">
+                                <button type="submit" class="btn-primary bg-blue-600 hover:bg-blue-700" :disabled="selectedPoses.length < 2">Compare</button>
+                            </form>
+
+                            <!-- Suggest Improvements Form -->
+                            <form x-show="expertTab === 'improve'" hx-post="/api/llm/expert/improve" hx-target="#expert-result" hx-swap="innerHTML" hx-indicator="#expert-spinner">
+                                <input type="hidden" name="smiles" :value="ligandSmiles">
+                                <input type="hidden" name="poses_json" :value="JSON.stringify(selectedPoses)">
+                                <input type="hidden" name="interactions_json" :value="JSON.stringify(poseInteractions)">
+                                <button type="submit" class="btn-primary bg-emerald-600 hover:bg-emerald-700" :disabled="selectedPoses.length === 0">Improve</button>
+                            </form>
+
+                            <!-- Generate Report Form -->
+                            <form x-show="expertTab === 'report'" hx-post="/api/llm/expert/report" hx-target="#expert-result" hx-swap="innerHTML" hx-indicator="#expert-spinner">
+                                <input type="hidden" name="poses_json" :value="JSON.stringify(selectedPoses)">
+                                <input type="hidden" name="interactions_json" :value="JSON.stringify(poseInteractions)">
+                                <input type="hidden" name="metadata_json" :value="JSON.stringify(jobMetadata || {})">
+                                <button type="submit" class="btn-primary bg-purple-600 hover:bg-purple-700">Generate</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Spinner -->
+                    <div id="expert-spinner" class="htmx-indicator flex flex-col items-center justify-center py-8 text-indigo-400 space-y-4">
+                        <svg class="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span class="text-sm font-medium">Expert is analyzing the structural data...</span>
+                    </div>
+
+                    <!-- Results Area -->
+                    <div id="expert-result" class="bg-slate-50 dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800 p-6 min-h-[200px]">
+                        <div class="text-center text-slate-400 py-8">
+                            <div class="text-3xl mb-3 opacity-50">🔬</div>
+                            <p class="text-sm">Select a tab and click the action button to generate an expert analysis.</p>
+                            <p class="text-xs mt-2 text-slate-300">Analysis strictly bound to calculated geometric constraints.</p>
+                        </div>
+                    </div>
+                </div>
+            </div></div>
 
         </div>
     </div>
@@ -125,78 +289,349 @@
 <script>
 document.addEventListener('alpine:init', () => {
     Alpine.data('poseAnalysis', () => ({
-        // In production these would be loaded from a docking job via the API.
-        // Using sample data so the page is immediately usable for demo & testing.
-        poses: [
-            {rank: 1, affinity: -8.4, rmsd_lb: 0.0, rmsd_ub: 0.0},
-            {rank: 2, affinity: -7.9, rmsd_lb: 1.2, rmsd_ub: 1.8},
-            {rank: 3, affinity: -7.6, rmsd_lb: 2.4, rmsd_ub: 3.1},
-            {rank: 4, affinity: -6.8, rmsd_lb: 4.5, rmsd_ub: 5.2},
-            {rank: 5, affinity: -6.1, rmsd_lb: 5.8, rmsd_ub: 6.9}
-        ],
-        interactions: [
-            {type: 'H-bond',      protein_residue: 'SER 45',  ligand_atom: 'O1',     distance: 2.8},
-            {type: 'Pi-Stacking', protein_residue: 'TRP 120', ligand_atom: 'Ring A',  distance: 3.5},
-            {type: 'Hydrophobic', protein_residue: 'VAL 89',  ligand_atom: 'C3',      distance: 3.9}
-        ],
-        ligandSmiles: 'CC(=O)Oc1ccccc1C(=O)O',  // Aspirin (placeholder)
-        selectedPose: null,
+        jobId: null,
+        jobMetadata: null,
+        poses: [],
+        poseInteractions: {}, // rank -> array of interactions
+        ligandSmiles: '',
+        selectedPoses: [],
+        loading: false,
+        loadError: '',
+        statusMessage: '',
+        errorMessage: '',  // fixed: was referenced in catch blocks but undeclared (AlpineJS repair)
+        chimeraAvailable: false,
+        recentJobs: [],
+        loadingRecent: false,
+        showRecentPicker: false,
 
-        init() {
-            this.selectPose(this.poses[0]);
+        async init() {
+            const params = new URLSearchParams(window.location.search);
+            const urlJobId = params.get('job_id');
+            if (urlJobId) {
+                this.jobId = urlJobId;
+                try { sessionStorage.setItem('lastPoseAnalysisJobId', urlJobId); } catch(e){}
+                await this.loadRealJob(urlJobId);
+            } else {
+                try {
+                    const lastId = sessionStorage.getItem('lastPoseAnalysisJobId');
+                    if (lastId) {
+                        this.loadError = `Showing empty state. You can reload your last job (${lastId.slice(0,8)}…) from Recent Jobs.`;
+                        this.showRecentPicker = true;
+                    }
+                } catch(e){}
+            }
         },
 
-        selectPose(pose) {
-            this.selectedPose = pose;
-            // Clear previous explanation when switching poses
-            const target = document.getElementById('llm-result');
-            if (target) {
-                target.innerHTML =
-                    '<div class="text-center text-slate-400 py-4">' +
-                    '<p class="text-sm">Pose <strong>' + pose.rank + '</strong> selected (' + pose.affinity + ' kcal/mol). Click <strong>"Explain with AI"</strong> to analyse.</p>' +
-                    '<p class="text-xs mt-2 text-slate-300">Powered by OpenRouter · DeepSeek</p>' +
-                    '</div>';
+        async ensureMolstar() {
+            if (window.molstar?.Viewer) return window.molstar;
+            if (!window.__molstarPromise) {
+                window.__molstarPromise = (async () => {
+                    const scripts = [
+                        'https://cdn.jsdelivr.net/npm/molstar@5.4.2/build/viewer/molstar.js',
+                        'https://unpkg.com/molstar@5.4.2/build/viewer/molstar.js'
+                    ];
+                    for (const src of scripts) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const script = document.createElement('script');
+                                script.src = src;
+                                script.onload = resolve;
+                                script.onerror = reject;
+                                document.head.appendChild(script);
+                            });
+                            if (window.molstar?.Viewer) return window.molstar;
+                        } catch (e) {}
+                    }
+                })();
+            }
+            return await window.__molstarPromise;
+        },
+
+        isPoseSelected(pose) {
+            return this.selectedPoses.some(selected => selected.rank === pose.rank);
+        },
+
+        formatDistance(distance) {
+            const value = Number(distance);
+            return Number.isFinite(value) ? `${value.toFixed(2)} Å` : '';
+        },
+
+        async openInChimeraX(pose) {
+            if (!this.jobId || !pose) return;
+            const rank = pose.rank;
+            try {
+                const launchRes = await fetch(`/api/docking/job/${this.jobId}/launch_chimera`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rank })
+                });
+                if (launchRes.ok) {
+                    const result = await launchRes.json();
+                    this.statusMessage = result.message || 'ChimeraX launched successfully!';
+                    return;
+                }
+                const scriptRes = await fetch(`/api/docking/job/${this.jobId}/chimera_script`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rank })
+                });
+                if (!scriptRes.ok) throw new Error('Failed to generate ChimeraX script');
+                const data = await scriptRes.json();
+                const blob = new Blob([data.script], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename || `view_pose_${rank}.cxc`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.statusMessage = 'ChimeraX script downloaded.';
+            } catch (e) {
+                this.loadError = `ChimeraX action failed: ${e.message}`;
+            }
+        },
+
+        async loadRealJob(jobId) {
+            this.loading = true;
+            this.loadError = '';
+            this.jobId = jobId;
+            this.selectedPoses = [];
+            this.poseInteractions = {};
+            try {
+                const res = await fetch(`/api/docking/job/${encodeURIComponent(jobId)}`);
+                if (!res.ok) throw new Error(`Failed to load job (${res.status})`);
+                const data = await res.json();
+                const report = data.report || {};
+                const dbRecord = data.db_record || null;
+
+                this.poses = report.poses || [];
+                this.ligandSmiles = report.ligand_smiles || dbRecord?.ligand_smiles || '';
+                this.jobMetadata = dbRecord || { receptor_name: report.receptor_name || '', ligand_name: report.ligand_name || '' };
+
+                if (this.poses.length > 0) {
+                    try { sessionStorage.setItem('lastPoseAnalysisJobId', jobId); } catch(e){}
+
+                    await Promise.all(this.poses.slice(0, 10).map(pose => this.fetchInteractions(pose.rank)));
+
+                    await this.togglePose(this.poses[0]);
+                } else {
+                    this.loadError = 'No poses found in this docking job.';
+                }
+            } catch (e) {
+                this.loadError = e.message || 'Failed to load docking results.';
+                this.showRecentPicker = true;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async fetchPose(rank) {
+            const fallback = this.poses.find(pose => pose.rank === rank) || null;
+            try {
+                const res = await fetch('/api/docking/pose', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ job_id: this.jobId, rank })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `Failed to load pose ${rank}`);
+                }
+                const data = await res.json();
+                const poseData = data.pose || {};
+                const merged = { ...(fallback || {}), ...poseData };
+                this.poses = this.poses.map(pose => pose.rank === rank ? { ...pose, ...merged } : pose);
+                return merged;
+            } catch (e) {
+                this.loadError = e.message || `Could not load pose ${rank}.`;
+                return fallback;
+            }
+        },
+
+        stripPdbqtToPdb(pdbqtText) {
+            // Mol* PDB parser hangs if it sees invalid elements (PDBQT atom types like 'OA' or 'A').
+            // By truncating strictly to 66 columns, we remove PDBQT charges and atom types,
+            // leaving standard PDB coordinates. Mol* will safely infer elements from the atom name.
+            const cleanText = (pdbqtText || '').replace(/\r/g, '');
+            return cleanText.split('\n').map(line => {
+                if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+                    // Return only up to the temperature factor (column 66).
+                    return line.substring(0, 66);
+                }
+                return line;
+            }).join('\n');
+        },
+
+        async fetchInteractions(rank) {
+            try {
+                const res = await fetch('/api/docking/interactions', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ job_id: this.jobId, rank })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Reassign entire object so Alpine reactivity picks up the new key
+                    this.poseInteractions = { ...this.poseInteractions, [rank]: data.interactions || [] };
+                }
+            } catch (e) {
+                this.poseInteractions = { ...this.poseInteractions, [rank]: [] };
+            }
+        },
+
+        async togglePose(pose) {
+            const idx = this.selectedPoses.findIndex(p => p.rank === pose.rank);
+            if (idx >= 0) {
+                this.selectedPoses.splice(idx, 1);
+            } else {
+                const loadedPose = await this.fetchPose(pose.rank);
+                this.selectedPoses.push(loadedPose || pose);
+                if (!this.poseInteractions[pose.rank]) {
+                    await this.fetchInteractions(pose.rank);
+                }
             }
 
-            // Render 3D pose using 3Dmol.js
-            this.$nextTick(async () => {
-                const element = document.getElementById("pose-3d-viewer");
-                if (element && typeof $3Dmol !== 'undefined') {
-                    element.innerHTML = ""; // Clear
-                    let viewer = $3Dmol.createViewer(element, {
-                        backgroundColor: "white"
-                    });
-                    
-                    let ligand_structure = pose.pdbqt_block || "";
-                    if (!ligand_structure) {
-                        // If no pdbqt block is in demo data, generate 3D coordinates using embed/RDKit from SMILES
-                        try {
-                            const res = await fetch('/api/visualization/ligand3d', {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({smiles: this.ligandSmiles})
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                ligand_structure = data.pdbqt || "";
-                            }
-                        } catch(e) {
-                            console.error("Failed to fetch 3D ligand structure:", e);
-                        }
-                    }
-                    
-                    if (ligand_structure) {
-                        viewer.addModel(ligand_structure, "pdbqt");
-                        viewer.setStyle({}, {stick: {colorscheme: 'greenCarbon'}});
-                        viewer.zoomTo();
-                        viewer.render();
-                    } else {
-                        element.innerHTML = "<div class='absolute inset-0 flex items-center justify-center text-slate-400'>Failed to load 3D structures.</div>";
-                    }
-                    window.__poseViewer = viewer;
+            const target = document.getElementById('expert-result');
+            if (target) {
+                target.innerHTML = '<div class="text-center text-slate-400 py-4"><p class="text-sm">Click <strong>"Explain with AI"</strong> to analyse selected poses.</p></div>';
+            }
+
+            this.renderMolstar();
+        },
+
+        async renderMolstar() {
+            // Repaired: use proven loadStructureFromData pattern (matching working docking_workspace.html)
+            // This fixes console errors from incorrect loadTrajectory API usage and ensures 3D pose rendering.
+            if (this.selectedPoses.length === 0) {
+                if (this.molstarViewer?.plugin?.clear) {
+                    try { await this.molstarViewer.plugin.clear(); } catch (e) {}
                 }
-            });
-        }
+                return;
+            }
+            const element = document.getElementById("molstar-viewer-container");
+            if (!element) return;
+
+            console.log('[Pose Mol*] renderMolstar() called, selectedPoses:', this.selectedPoses.length, 'jobId:', this.jobId);
+
+            try {
+                const molstar = await this.ensureMolstar();
+                if (!molstar?.Viewer) {
+                    console.error('[Pose Mol*] molstar.Viewer not available after ensureMolstar()');
+                    this.statusMessage = 'Pose data loaded. 3D viewer library is unavailable.';
+                    return;
+                }
+                console.log('[Pose Mol*] molstar library loaded, Viewer:', !!molstar.Viewer);
+
+                if (!window._poseMolstarViewer) {
+                    console.log('[Pose Mol*] Creating new Mol* viewer instance...');
+                    window._poseMolstarViewer = await molstar.Viewer.create(element, {
+                        layoutIsExpanded: false,
+                        layoutShowControls: true,
+                        layoutShowRemoteState: false,
+                        layoutShowSequence: false,
+                        layoutShowLog: false,
+                        layoutShowLeftPanel: true,
+                        collapseLeftPanel: true,
+                        viewportShowExpand: true,
+                        viewportShowSelectionMode: false
+                    });
+                    console.log('[Pose Mol*] Viewer created successfully');
+                }
+
+                if (window._poseMolstarViewer?.plugin?.clear) {
+                    try { await window._poseMolstarViewer.plugin.clear(); } catch (e) {}
+                }
+
+                // Load receptor (protein.pdbqt saved by docking service)
+                const recUrl = `/outputs/docking_workspace/${this.jobId}/protein.pdbqt`;
+                console.log('[Pose Mol*] Fetching receptor from:', recUrl);
+                const recRes = await fetch(recUrl);
+                if (recRes.ok) {
+                    const recData = await recRes.text();
+                    console.log('[Pose Mol*] Receptor data fetched, length:', recData.length, 'first80:', recData.substring(0, 80));
+
+                    // Strip PDBQT extra columns that hang Mol* parser and load as pure PDB
+                    try {
+                        const purePdb = this.stripPdbqtToPdb(recData);
+                        console.log(`[Pose Mol*] Attempting receptor load with format 'pdb' after stripping...`);
+                        await window._poseMolstarViewer.loadStructureFromData(purePdb, 'pdb', { dataLabel: 'Receptor' });
+                        console.log(`[Pose Mol*] ✅ Receptor loaded successfully with format 'pdb'`);
+                    } catch (fmtErr) {
+                        console.warn(`[Pose Mol*] ❌ Receptor load FAILED with format 'pdb':`, fmtErr?.message || fmtErr);
+                    }
+                } else {
+                    console.warn('[Pose Mol*] Receptor fetch failed:', recRes.status, recRes.statusText);
+                }
+
+                // Load selected pose ligands (prefer sdf from memory or disk path)
+                for (const pose of this.selectedPoses) {
+                    console.log(`[Pose Mol*] Loading ligand for pose ${pose.rank}, has sdf: ${!!pose.sdf}, sdf_path: ${pose.sdf_path || 'none'}, has pdbqt: ${!!pose.pdbqt}`);
+                    let ligandData = pose.sdf || '';
+                    let ligandFormat = 'sdf';
+                    if (!ligandData && pose.sdf_path) {
+                        try {
+                            const sdfRes = await fetch(pose.sdf_path);
+                            if (sdfRes.ok) ligandData = await sdfRes.text();
+                        } catch (e) { console.warn('[Pose Mol*] SDF fetch failed for pose', pose.rank, e); }
+                    }
+                    // Fallback: use PDBQT block if no SDF available
+                    if (!ligandData && pose.pdbqt) {
+                        console.log(`[Pose Mol*] No SDF for pose ${pose.rank}, falling back to PDBQT via stripping`);
+                        ligandData = this.stripPdbqtToPdb(pose.pdbqt);
+                        ligandFormat = 'pdb';
+                    }
+                    if (ligandData) {
+                        try {
+                            console.log(`[Pose Mol*] Loading ligand pose ${pose.rank} with format '${ligandFormat}', data length: ${ligandData.length}`);
+                            await window._poseMolstarViewer.loadStructureFromData(ligandData, ligandFormat, { dataLabel: `Pose ${pose.rank}` });
+                            console.log(`[Pose Mol*] ✅ Ligand pose ${pose.rank} loaded successfully`);
+                        } catch (e) {
+                            console.warn(`[Pose Mol*] ❌ Ligand render failed for pose ${pose.rank} (format: ${ligandFormat}):`, e);
+                            // If SDF failed, try PDBQT fallback via stripping
+                            if (ligandFormat === 'sdf' && pose.pdbqt) {
+                                try {
+                                    console.log(`[Pose Mol*] Retrying pose ${pose.rank} with PDBQT fallback...`);
+                                    const cleanLigandPdb = this.stripPdbqtToPdb(pose.pdbqt);
+                                    await window._poseMolstarViewer.loadStructureFromData(cleanLigandPdb, 'pdb', { dataLabel: `Pose ${pose.rank}` });
+                                    console.log(`[Pose Mol*] ✅ Ligand pose ${pose.rank} loaded via stripped PDB fallback`);
+                                } catch (e2) {
+                                    console.warn(`[Pose Mol*] ❌ PDB fallback also failed for pose ${pose.rank}:`, e2);
+                                }
+                            }
+                        }
+                    } else {
+                        console.warn(`[Pose Mol*] No structure data available for pose ${pose.rank}`);
+                    }
+                }
+
+                if (window._poseMolstarViewer?.handleResize) window._poseMolstarViewer.handleResize();
+                this.statusMessage = '';
+            } catch (e) {
+                this.statusMessage = 'Pose data loaded. 3D rendering unavailable (see console).';
+                console.error('[Pose Mol*] render failed:', e);
+            }
+        },
+
+        async fetchRecentJobs() {
+            this.loadingRecent = true;
+            try {
+                const res = await fetch('/api/docking/jobs?limit=20');
+                if (!res.ok) throw new Error('Failed to load recent jobs');
+                const data = await res.json();
+                this.recentJobs = data.items || [];
+                this.showRecentPicker = true;
+            } catch (e) {
+                this.loadError = 'Could not load your recent docking jobs.';
+            } finally {
+                this.loadingRecent = false;
+            }
+        },
+        loadJobFromPicker(job) {
+            if (!job || !job.id) return;
+            window.location.href = `/pose-analysis?job_id=${encodeURIComponent(job.id)}`;
+        },
+        closeRecentPicker() { this.showRecentPicker = false; }
     }));
 });
 </script>

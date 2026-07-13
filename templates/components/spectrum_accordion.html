@@ -21,17 +21,17 @@
                 {% for sig in spectrum_data.signals %}
                 <tr>
                     <td class="py-2 font-mono text-emerald-600">
-                        {% if sig.get('ppm_range') %}
-                            {{ "%.2f"|format(sig['ppm_range'][0]) }}–{{ "%.2f"|format(sig['ppm_range'][1]) }}
-                        {% elif sig.get('ppm_mid') is not none %}
-                            {{ "%.2f"|format(sig['ppm_mid']) }}
+                        {% if sig.ppm_range is defined and sig.ppm_range %}
+                            {{ "%.2f"|format(sig.ppm_range[0]) }}–{{ "%.2f"|format(sig.ppm_range[1]) }}
+                        {% elif sig.ppm_mid is defined and sig.ppm_mid is not none %}
+                            {{ "%.2f"|format(sig.ppm_mid) }}
                         {% else %}
                             No prediction available
                         {% endif %}
                     </td>
-                    <td class="py-2">{{ sig.get('integration', '') }}H</td>
-                    <td class="py-2">{{ sig.get('multiplicity', '') }}</td>
-                    <td class="py-2">{{ sig.get('label', '') }}</td>
+                    <td class="py-2">{{ sig.integration | default('') }}H</td>
+                    <td class="py-2">{{ sig.multiplicity | default('') }}</td>
+                    <td class="py-2">{{ sig.label | default('') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -49,16 +49,16 @@
                 {% for env in spectrum_data.environments %}
                 <tr>
                     <td class="py-2 font-mono text-emerald-600">
-                        {% if env.get('ppm_range') %}
-                            {{ "%.1f"|format(env['ppm_range'][0]) }}–{{ "%.1f"|format(env['ppm_range'][1]) }}
-                        {% elif env.get('ppm_mid') is not none %}
-                            {{ "%.1f"|format(env['ppm_mid']) }}
+                        {% if env.ppm_range is defined and env.ppm_range %}
+                            {{ "%.1f"|format(env.ppm_range[0]) }}–{{ "%.1f"|format(env.ppm_range[1]) }}
+                        {% elif env.ppm_mid is defined and env.ppm_mid is not none %}
+                            {{ "%.1f"|format(env.ppm_mid) }}
                         {% else %}
                             No prediction available
                         {% endif %}
                     </td>
-                    <td class="py-2">{{ env.get('carbon_count', 1) }}</td>
-                    <td class="py-2">{{ env.get('label', '') }}</td>
+                    <td class="py-2">{{ env.carbon_count | default(1) }}</td>
+                    <td class="py-2">{{ env.label | default('') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -1,0 +1,31 @@
+# Source distribution inclusions for Chemistry Companion packaging.
+# Runtime package data is primarily declared in pyproject.toml
+# [tool.setuptools.package-data]; this file covers sdist extras.
+
+include LICENSE
+include README.md
+include citation.cff
+include .env.example
+include requirements.txt
+include pyproject.toml
+
+recursive-include templates *.html
+recursive-include static *.css *.js *.png *.svg *.ico *.woff *.woff2 *.ttf
+include data/*.csv
+include data/*.txt
+include data/__init__.py
+
+# Explicitly exclude heavy / non-distributable trees
+prune AutoDock-Vina
+prune archive
+prune node_modules
+prune outputs
+prune output
+prune backups
+prune graphify-out
+prune .venv
+prune venv
+prune __pycache__
+prune .pytest_cache
+prune .git
+global-exclude *.pyc *.pyo *.pyd .DS_Store

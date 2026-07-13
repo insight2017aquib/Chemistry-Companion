@@ -26,7 +26,7 @@ class ExportRequest(BaseModel):
     output_dir: Optional[str] = Field(None, description="Output directory")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "analysis_ids": ["analysis_001", "analysis_002"],
                 "formats": ["csv", "json", "xlsx"],
@@ -44,7 +44,7 @@ class ExportResponse(BaseModel):
     errors: List[str] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "export_paths": {

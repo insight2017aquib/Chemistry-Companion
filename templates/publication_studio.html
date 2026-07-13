@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Publication & Thesis Assistant - Chemistry Companion{% endblock %}
+
+{% block head %}
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="publicationApp()">
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <div class="w-10 h-10 bg-teal-100 text-teal-700 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                </div>
+                Publication & Thesis Assistant
+            </h1>
+            <p class="text-slate-500 mt-2">Export academic tables, generate citations, and draft evidence-linked manuscripts.</p>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Document Hub -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- AI Writer -->
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        AI Scientific Writer (Drafts)
+                    </h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="bg-amber-50 text-amber-800 text-xs p-3 rounded flex gap-2">
+                        <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <div><strong>Evidence Linking Enforced:</strong> All generated text is draft material and must be reviewed. The AI is strictly instructed not to present generated text as validated conclusions without citing stored compound IDs.</div>
+                    </div>
+                    
+                    <form @submit.prevent="draftResults" class="flex gap-2">
+                        <select x-model="draftCampaignId" class="text-sm rounded border-slate-300">
+                            <option value="">Select Campaign...</option>
+                            {% for c in campaigns %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <select x-model="pubTemplate" class="text-sm rounded border-slate-300">
+                            <option value="ACS">ACS Format</option>
+                            <option value="JMedChem">J. Med. Chem.</option>
+                            <option value="EurJMedChem">Eur. J. Med. Chem.</option>
+                            <option value="SciRep">Scientific Reports</option>
+                            <option value="Molecules">Molecules</option>
+                        </select>
+                        <button type="submit" class="bg-indigo-600 text-white font-bold px-4 py-2 rounded text-sm hover:bg-indigo-700 flex-1" :disabled="loadingDraft || !draftCampaignId">
+                            <span x-show="!loadingDraft">Draft Results</span>
+                            <span x-show="loadingDraft">Drafting...</span>
+                        </button>
+                    </form>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="relative">
+                            <label class="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Manuscript Editor</label>
+                            <textarea id="manuscript-editor" class="w-full rounded border-slate-300 text-sm font-serif h-64" placeholder="AI drafted text will appear here..."></textarea>
+                        </div>
+                        
+                        <!-- Traceability Viewer -->
+                        <div class="bg-slate-50 rounded border border-slate-200 p-3 h-64 overflow-y-auto">
+                            <label class="text-[10px] uppercase font-bold text-slate-500 mb-2 block flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                Results Traceability Viewer
+                            </label>
+                            <div id="traceability-panel" class="text-xs text-slate-600">
+                                <div class="text-center mt-10 text-slate-400">Select text in the editor or generate a draft to view underlying evidence links here.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Figure & Caption Builder -->
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900">Caption Generator</h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <form @submit.prevent="generateCaption" class="flex gap-2">
+                        <select x-model="figureType" class="w-1/3 text-sm rounded border-slate-300">
+                            <option value="SAR Table">SAR Table</option>
+                            <option value="Docking Scatter Plot">Scatter Plot</option>
+                            <option value="Radar Chart">Radar Chart</option>
+                        </select>
+                        <input type="text" x-model="figureContext" class="flex-1 text-sm rounded border-slate-300" placeholder="E.g., SAR trends of pyridine series highlighting pIC50 vs LogP">
+                        <button type="submit" class="bg-slate-800 text-white font-bold px-4 py-2 rounded text-sm hover:bg-slate-900" :disabled="loadingCaption">Generate</button>
+                    </form>
+                    <div id="caption-res"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Sidebar Tools -->
+        <aside class="space-y-6">
+            
+            <!-- Table Export -->
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900">Table Generator</h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <select x-model="tableCampaignId" class="w-full text-sm rounded border-slate-300">
+                        <option value="">Select Campaign...</option>
+                        {% for c in campaigns %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                    
+                    <div class="space-y-2">
+                        <a :href="tableCampaignId ? `/api/publication/table/campaign/${tableCampaignId}?format=csv` : '#'" 
+                           class="block w-full text-center text-xs bg-white border border-slate-300 text-slate-700 font-bold px-3 py-2 rounded hover:bg-slate-50"
+                           :class="!tableCampaignId ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''">
+                            Download CSV Table
+                        </a>
+                        <a :href="tableCampaignId ? `/api/publication/table/campaign/${tableCampaignId}?format=latex` : '#'" 
+                           class="block w-full text-center text-xs bg-white border border-slate-300 text-slate-700 font-bold px-3 py-2 rounded hover:bg-slate-50"
+                           :class="!tableCampaignId ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''">
+                            Download LaTeX Table
+                        </a>
+                        {% if docx_available %}
+                        <a :href="tableCampaignId ? `/api/publication/table/campaign/${tableCampaignId}?format=docx` : '#'" 
+                           class="block w-full text-center text-xs bg-blue-50 border border-blue-200 text-blue-700 font-bold px-3 py-2 rounded hover:bg-blue-100"
+                           :class="!tableCampaignId ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''">
+                            Download Word (.docx) Table
+                        </a>
+                        {% else %}
+                        <div class="text-center text-[10px] text-slate-400 p-1">Word (.docx) export requires python-docx package.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Citation Manager -->
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col max-h-[500px]">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900 flex justify-between items-center">
+                        Citation Manager
+                        <select x-model="citationStyle" @change="loadCitations" class="text-xs rounded border-slate-300 py-1 pl-2 pr-6">
+                            <option value="ACS">ACS</option>
+                            <option value="APA">APA</option>
+                            <option value="Nature">Nature</option>
+                        </select>
+                    </h2>
+                </div>
+                <div class="p-3 border-b border-slate-100 bg-slate-50">
+                    <select x-model="citationProjectId" @change="loadCitations" class="w-full text-xs rounded border-slate-300">
+                        <option value="">Select Project Library...</option>
+                        {% for p in projects %}
+                        <option value="{{ p.id }}">{{ p.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="p-4 flex-1 overflow-y-auto" id="citations-container">
+                    <div class="text-xs text-slate-400 text-center mt-10">Select a project to view formatted references.</div>
+                </div>
+            </div>
+
+            <!-- Asset Library -->
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                <div class="bg-slate-50 border-b border-slate-200 p-4">
+                    <h2 class="font-bold text-slate-900">Figure & Table Library</h2>
+                </div>
+                <div class="p-4 space-y-2 text-sm text-slate-600">
+                    <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span>Figure 1: SAR Heatmap v1</span>
+                    </div>
+                    <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+                        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <span>Table 1: Physchem Summary</span>
+                    </div>
+                    <div class="text-center mt-4"><button class="text-xs text-indigo-600 hover:underline">View All Assets</button></div>
+                </div>
+            </div>
+
+        </aside>
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('publicationApp', () => ({
+        draftCampaignId: '',
+        pubTemplate: 'ACS',
+        loadingDraft: false,
+        
+        figureType: 'SAR Table',
+        figureContext: '',
+        loadingCaption: false,
+        
+        tableCampaignId: '',
+        
+        citationProjectId: '',
+        citationStyle: 'ACS',
+        
+        async draftResults() {
+            if (!this.draftCampaignId) return;
+            this.loadingDraft = true;
+            
+            const fd = new FormData();
+            fd.append('campaign_id', this.draftCampaignId);
+            
+            try {
+                const res = await fetch('/api/publication/ai/draft-results', {
+                    method: 'POST',
+                    body: fd
+                });
+                if (res.ok) {
+                    const data = await res.json();
+
+                    const temp = document.createElement('div');
+                    temp.innerHTML = data.draft_html || '';
+                    document.getElementById('manuscript-editor').value = temp.innerText || temp.textContent;
+
+                    // Traceability View: built from the real compounds the draft cites.
+                    const evidence = data.evidence || [];
+                    const panel = document.getElementById('traceability-panel');
+                    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+                    const fmt = (v) => (v == null ? 'N/A' : v);
+
+                    const saved = data.persisted
+                        ? `<div class="bg-slate-800 text-white p-2 rounded mb-2 text-[11px] font-mono">
+                             Saved draft <strong>${esc(data.draft_id)}</strong> (v${esc(data.version)}) with evidence map
+                           </div>`
+                        : `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-2 rounded mb-2 text-[11px]">
+                             Draft not persisted — this campaign is not owned by a project.
+                           </div>`;
+
+                    if (!evidence.length) {
+                        panel.innerHTML = saved + `<div class="text-slate-500 italic">No compound evidence available for this campaign.</div>`;
+                    } else {
+                        panel.innerHTML = saved + evidence.map(e => `
+                            <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded mb-2 font-mono text-xs">
+                                <strong>Entity:</strong> ${esc(e.id)}${e.name ? ' (' + esc(e.name) + ')' : ''}<br>
+                                <strong>pIC50:</strong> ${fmt(e.pIC50)}<br>
+                                <strong>LogP:</strong> ${fmt(e.LogP)}
+                            </div>
+                        `).join('') + `<div class="text-slate-500 italic">Evidence reflects the actual top compounds this draft was generated from.</div>`;
+                    }
+                }
+            } finally {
+                this.loadingDraft = false;
+            }
+        },
+        
+        async generateCaption() {
+            if (!this.figureContext) return;
+            this.loadingCaption = true;
+            
+            const fd = new FormData();
+            fd.append('figure_type', this.figureType);
+            fd.append('context', this.figureContext);
+            
+            try {
+                const res = await fetch('/api/publication/ai/draft-caption', {
+                    method: 'POST',
+                    body: fd
+                });
+                if (res.ok) {
+                    document.getElementById('caption-res').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingCaption = false;
+            }
+        },
+        
+        async loadCitations() {
+            if (!this.citationProjectId) return;
+            const container = document.getElementById('citations-container');
+            container.innerHTML = '<div class="text-xs text-center text-slate-500 animate-pulse mt-10">Formatting...</div>';
+            
+            const res = await fetch(`/api/publication/citations/project/${this.citationProjectId}?style=${this.citationStyle}`);
+            if (res.ok) {
+                container.innerHTML = await res.text();
+            } else {
+                container.innerHTML = '<div class="text-xs text-red-500 text-center mt-10">Failed to load citations.</div>';
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

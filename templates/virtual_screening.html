@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}Virtual Screening - Chemistry Companion{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="virtualScreening()">
+    <header class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900">Virtual Screening Platform</h1>
+            <p class="mt-2 max-w-3xl text-sm text-slate-500">
+                Perform high-throughput docking by reusing your prepared workspaces. Track progress, cluster hits, and triage with AI.
+            </p>
+        </div>
+        <div class="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+            <span class="h-2 w-2 rounded-full" :class="activeJob ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'"></span>
+            <span x-text="activeJob ? 'Screening in progress...' : 'System idle'"></span>
+        </div>
+    </header>
+
+    <div class="grid gap-6 lg:grid-cols-[24rem_minmax(0,1fr)]">
+        <!-- Configuration Panel -->
+        <aside class="space-y-5">
+            <!-- New Job Card -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 class="font-bold text-slate-900 flex items-center gap-2">
+                    <span class="text-indigo-600">⚡</span> New Screening Batch
+                </h2>
+                <p class="mt-1 text-xs text-slate-500 mb-4">Uses existing Phase 1-7 infrastructure to execute scalable VS without duplicated workflows.</p>
+                
+                <form @submit.prevent="startScreening" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700">Receptor Workspace</label>
+                        <select x-model="selectedWorkspace" class="mt-1 block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                            <option value="">Select a prepared receptor...</option>
+                            <template x-for="wksp in recentWorkspaces" :key="wksp.id">
+                                <option :value="wksp.id" x-text="formatWorkspaceLabel(wksp)"></option>
+                            </template>
+                        </select>
+                        <p class="mt-1 text-[10px] text-slate-500">Only workspaces with a finalized Grid Box are shown.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700">Ligand Library</label>
+                        <input type="file" x-ref="libraryFile" accept=".csv,.sdf,.smi" required
+                               class="mt-1 block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold hover:file:bg-slate-200">
+                        <p class="mt-1 text-[10px] text-slate-500">Upload CSV (SMILES,Name) or SDF.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700">Exhaustiveness</label>
+                        <input type="number" x-model="exhaustiveness" min="1" max="64" class="mt-1 block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <p class="mt-1 text-[10px] text-slate-500">Vina internal threads per ligand.</p>
+                    </div>
+
+                    <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" :disabled="loading || activeJob">
+                        <span x-show="!loading">Start Screening Pipeline</span>
+                        <span x-show="loading">Initializing...</span>
+                    </button>
+                </form>
+                
+                <div x-show="error" x-cloak class="mt-3 p-3 rounded bg-red-50 text-red-700 text-sm border border-red-200" x-text="error"></div>
+            </div>
+            
+            <!-- Clustering & AI Tools -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" x-show="activeJob">
+                <h2 class="font-bold text-slate-900 flex items-center gap-2 mb-3">
+                    <span class="text-purple-600">🧠</span> AI Hit Triage
+                </h2>
+                <p class="text-xs text-slate-600 mb-4">Leverage the Phase 7 AI Docking Expert to cluster top hits by scaffold and suggest lead optimization paths.</p>
+                <button type="button" @click="runAiTriage" class="w-full btn-primary bg-purple-600 hover:bg-purple-700 text-sm py-2" :disabled="triageLoading || !activeJob || activeJob.status !== 'completed'">
+                    <span x-show="!triageLoading">Run Scaffold & AI Triage</span>
+                    <span x-show="triageLoading">AI is analyzing clusters...</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Dashboard Panel -->
+        <main class="space-y-6">
+            <!-- Live Analytics -->
+            <div class="grid gap-4 sm:grid-cols-4">
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-center">
+                    <div class="text-xs text-slate-500 font-medium uppercase tracking-wider">Status</div>
+                    <div class="mt-1 text-lg font-bold" :class="statusColorClass" x-text="(activeJob?.status || 'IDLE').toUpperCase()"></div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="text-xs text-slate-500 font-medium uppercase tracking-wider">Progress</div>
+                    <div class="mt-1 text-2xl font-bold text-slate-900">
+                        <span x-text="activeJob?.completed_ligands || 0"></span><span class="text-slate-400 text-lg">/<span x-text="activeJob?.total_ligands || 0"></span></span>
+                    </div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="text-xs text-slate-500 font-medium uppercase tracking-wider">Avg Affinity</div>
+                    <div class="mt-1 text-2xl font-bold text-slate-900" x-text="activeJob?.metrics?.avg_affinity ? `${activeJob.metrics.avg_affinity} kcal` : '--'"></div>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="text-xs text-slate-500 font-medium uppercase tracking-wider">Best Hit</div>
+                    <div class="mt-1 text-2xl font-bold text-emerald-600" x-text="activeJob?.metrics?.best_affinity ? `${activeJob.metrics.best_affinity} kcal` : '--'"></div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" x-show="activeJob">
+                <div class="flex justify-between text-xs font-semibold text-slate-700 mb-2">
+                    <span>Batch Execution</span>
+                    <span x-text="`${activeJob?.progress?.percent || 0}%`"></span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-3">
+                    <div class="bg-indigo-500 h-3 rounded-full transition-all duration-500" :style="`width: ${activeJob?.progress?.percent || 0}%`"></div>
+                </div>
+            </div>
+
+            <!-- AI Triage Result -->
+            <div id="ai-triage-container" x-show="showTriageResult" x-cloak class="rounded-lg border border-purple-200 bg-purple-50 p-6 shadow-sm">
+                <h3 class="text-lg font-bold text-purple-900 mb-4 border-b border-purple-200 pb-2">AI Hit Triage Report</h3>
+                <div id="ai-triage-content" class="text-sm"></div>
+            </div>
+
+            <!-- Hits Datatable -->
+            <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm mt-5" x-show="activeJob && activeJob.status === 'Completed'" x-cloak>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="font-bold text-slate-900">Virtual Screening Analytics</h2>
+                    <div class="flex gap-2">
+                        <button @click="promoteTopN(10)" class="text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold px-3 py-1.5 rounded border border-indigo-200">Promote Top 10 to MedChem</button>
+                        <button @click="runAiTriage" class="text-xs bg-purple-600 text-white hover:bg-purple-700 font-bold px-3 py-1.5 rounded" :disabled="triageLoading">
+                            <span x-show="!triageLoading">Run AI Triage</span>
+                            <span x-show="triageLoading">Triaging...</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div x-show="showTriageResult" class="mb-6" x-transition>
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-100 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
+                            <tr>
+                                <th class="py-3 px-4">#</th>
+                                <th class="py-3 px-4">Name</th>
+                                <th class="py-3 px-4">SMILES</th>
+                                <th class="py-3 px-4">Affinity</th>
+                                <th class="py-3 px-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hits-table-body">
+                            <!-- Populated via HTMX or Alpine fetch -->
+                            <tr><td colspan="5" class="text-center py-8 text-slate-400">Hits will appear here as docking progresses...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('virtualScreening', () => ({
+        recentWorkspaces: [],
+        selectedWorkspace: '',
+        exhaustiveness: 8,
+        loading: false,
+        error: null,
+        activeJob: null, // Holds the current job state from API
+        pollInterval: null,
+        loadingHits: false,
+        triageLoading: false,
+        showTriageResult: false,
+
+        init() {
+            this.fetchRecentWorkspaces();
+            
+            // If there's a job ID in URL, resume it
+            const urlParams = new URLSearchParams(window.location.search);
+            const jobId = urlParams.get('job_id');
+            if (jobId) {
+                this.startPolling(jobId);
+            }
+        },
+
+        async fetchRecentWorkspaces() {
+            try {
+                // Registered route is /api/workspaces (plural); optionally scope to docking.
+                const res = await fetch('/api/workspaces?module=docking');
+                if (!res.ok) {
+                    console.error(`Failed to load workspaces: HTTP ${res.status}`);
+                    this.error = "Unable to load docking workspaces.";
+                    return;
+                }
+                const workspaces = await res.json();
+                // Filter workspaces that actually have a receptor generated (Phase 1-6 reuse)
+                this.recentWorkspaces = workspaces.filter(w => w.module === 'docking' && w.file_path);
+            } catch (err) {
+                console.error("Failed to load workspaces:", err);
+                this.error = "Unable to load docking workspaces.";
+            }
+        },
+
+        // Build an informative single-line option label from data already present on
+        // each workspace (state + updated_at). Defensive: falls back to the plain name
+        // for older workspaces missing state/fields.
+        formatWorkspaceLabel(wksp) {
+            const state = wksp.state || {};
+
+            // PDB code: prefer state.proteinFileName, else parse from the name.
+            let pdb = state.proteinFileName || '';
+            if (!pdb && wksp.name) pdb = wksp.name.replace(/^Docking:\s*/i, '');
+            pdb = pdb.replace(/\.[^.]+$/, '').toUpperCase();
+
+            // Prepared chains: actual saved selection, else full structure.
+            const chains = Array.isArray(state.selectedChains) && state.selectedChains.length
+                ? `Chain ${state.selectedChains.join(', ')}`
+                : 'Full structure';
+
+            // Updated: YYYY-MM-DD HH:MM (omit if unparseable).
+            let updated = '';
+            if (wksp.updated_at) {
+                const d = new Date(wksp.updated_at);
+                if (!isNaN(d.getTime())) {
+                    const p = (n) => String(n).padStart(2, '0');
+                    updated = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+                }
+            }
+
+            const parts = [];
+            parts.push(pdb ? `Docking: ${pdb}` : (wksp.name || 'Workspace'));
+            parts.push(chains);
+            if (updated) parts.push(updated);
+            return parts.join(' · ');
+        },
+
+        async startScreening() {
+            const fileInput = this.$refs.libraryFile;
+            if (!fileInput.files.length) {
+                this.error = "Please upload a library file.";
+                return;
+            }
+            if (!this.selectedWorkspace) {
+                this.error = "Please select a receptor workspace.";
+                return;
+            }
+
+            this.loading = true;
+            this.error = null;
+
+            // Faking a grid config for prototype. Real app gets it from the workspace state.
+            const gridConfig = JSON.stringify({ center_x: 0, center_y: 0, center_z: 0, size_x: 20, size_y: 20, size_z: 20 });
+
+            const formData = new FormData();
+            formData.append("workspace_id", this.selectedWorkspace);
+            formData.append("grid_json", gridConfig);
+            formData.append("library_file", fileInput.files[0]);
+            formData.append("exhaustiveness", this.exhaustiveness);
+
+            try {
+                const res = await fetch('/api/screening/start', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    this.startPolling(data.job_id);
+                    // Update URL silently to allow refresh
+                    window.history.replaceState({}, '', `/virtual-screening?job_id=${data.job_id}`);
+                } else {
+                    this.error = data.detail || "Failed to start screening.";
+                }
+            } catch (err) {
+                this.error = err.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        startPolling(jobId) {
+            this.activeJob = { id: jobId, status: 'initializing' };
+            this.fetchStatus(jobId); // immediate fetch
+            this.fetchHits(); // immediate fetch
+
+            if (this.pollInterval) clearInterval(this.pollInterval);
+            
+            this.pollInterval = setInterval(() => {
+                this.fetchStatus(jobId);
+                this.fetchHits();
+            }, 5000);
+        },
+
+        async fetchStatus(jobId) {
+            try {
+                const res = await fetch(`/api/screening/${jobId}/status`);
+                if (res.ok) {
+                    this.activeJob = await res.json();
+                    if (this.activeJob.status === 'completed' || this.activeJob.status === 'failed') {
+                        clearInterval(this.pollInterval);
+                    }
+                }
+            } catch (e) {
+                console.error("Poll error:", e);
+            }
+        },
+
+        async fetchHits() {
+            if (!this.activeJob) return;
+            this.loadingHits = true;
+            try {
+                const res = await fetch(`/api/screening/${this.activeJob.id}/hits`);
+                if (res.ok) {
+                    const html = await res.text();
+                    document.getElementById('hits-table-body').innerHTML = html;
+                }
+            } finally {
+                this.loadingHits = false;
+            }
+        },
+        
+        async runAiTriage() {
+            if (!this.activeJob) return;
+            this.triageLoading = true;
+            this.showTriageResult = true;
+            document.getElementById('ai-triage-content').innerHTML = "<div class='animate-pulse text-purple-600'>AI is generating scaffold clusters and optimization strategies...</div>";
+            
+            try {
+                const res = await fetch(`/api/screening/${this.activeJob.id}/triage`, { method: 'POST' });
+                if (res.ok) {
+                    document.getElementById('ai-triage-content').innerHTML = await res.text();
+                } else {
+                    document.getElementById('ai-triage-content').innerHTML = "<div class='text-red-500'>Triage failed.</div>";
+                }
+            } finally {
+                this.triageLoading = false;
+            }
+        },
+        
+        async promoteTopN(n) {
+            const seriesId = prompt(`Enter MedChem Series ID to promote Top ${n} hits:`);
+            if (!seriesId) return;
+            
+            const fd = new FormData();
+            fd.append("series_id", seriesId);
+            fd.append("n", n);
+            
+            const res = await fetch(`/api/screening/${this.activeJob.id}/promote_top_n`, {method: 'POST', body: fd});
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Successfully promoted ${data.promoted_count} hits to series ${seriesId}`);
+            } else {
+                alert("Failed to promote hits.");
+            }
+        },
+
+        async promoteHit(hitId) {
+            const seriesId = prompt("Enter the ID of the Chemical Series to promote this hit to (or create one in MedChem Workbench first):");
+            if (!seriesId) return;
+            
+            const fd = new FormData();
+            fd.append("hit_id", hitId);
+            fd.append("series_id", seriesId);
+            
+            const res = await fetch("/api/medchem/series/promote_hit", {method: 'POST', body: fd});
+            if (res.ok) {
+                alert("Hit successfully promoted to Chemical Series!");
+            } else {
+                alert("Failed to promote hit. Ensure the series ID is correct.");
+            }
+        },
+
+        get statusColorClass() {
+            if (!this.activeJob) return 'text-slate-500';
+            const s = this.activeJob.status;
+            if (s === 'completed') return 'text-emerald-600';
+            if (s === 'failed') return 'text-red-600';
+            if (s === 'running') return 'text-indigo-600';
+            return 'text-amber-500';
+        }
+    }));
+});
+</script>
+{% endblock %}

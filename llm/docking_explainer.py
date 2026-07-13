@@ -16,7 +16,7 @@ def explain_docking_result(poses: List[Dict[str, Any]], interactions: List[Dict[
     Top Poses:
     {json.dumps(poses[:5], indent=2)}
     
-    Key Interactions (Mocked):
+    Key Interactions:
     {json.dumps(interactions, indent=2)}
     
     Please provide a concise but professional summary of the binding affinity, 
@@ -40,7 +40,7 @@ def explain_single_pose(pose: Dict[str, Any], interactions: List[Dict[str, Any]]
     Rank: {pose.get('rank')}
     Affinity: {pose.get('affinity')} kcal/mol
     
-    Key Interactions (Mocked):
+    Key Interactions:
     {json.dumps(interactions, indent=2)}
     
     Explain why this specific pose might be favorable or unfavorable.

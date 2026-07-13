@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block title %}Research OS - Chemistry Companion{% endblock %}
+
+{% block head %}
+<!-- Include vis.js for Knowledge Graph visualization -->
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+    [x-cloak] { display: none !important; }
+    #kg-network { width: 100%; height: 400px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8" x-data="researchApp()">
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                <div class="w-10 h-10 bg-slate-800 text-white rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                </div>
+                Research Operating System
+            </h1>
+            <p class="text-slate-500 mt-2">Manage projects, track literature, maintain scientific memory, and generate thesis reports.</p>
+        </div>
+    </header>
+
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- Sidebar -->
+        <aside class="w-full lg:w-1/4 shrink-0 space-y-6">
+
+            <!-- Create Project -->
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div class="bg-slate-800 text-white p-3">
+                    <h2 class="font-bold text-sm">New Project</h2>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div>
+                        <label class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Project Name</label>
+                        <input type="text" x-model="projName" placeholder="e.g. ATR Inhibitor Program" class="w-full text-xs rounded border-slate-300">
+                    </div>
+                    <div>
+                        <label class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Target (optional)</label>
+                        <input type="text" x-model="projTarget" placeholder="e.g. ATR kinase" class="w-full text-xs rounded border-slate-300">
+                    </div>
+                    <div>
+                        <label class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Objectives (optional)</label>
+                        <textarea x-model="projObjectives" rows="2" placeholder="Goal of this project..." class="w-full text-xs rounded border-slate-300"></textarea>
+                    </div>
+                    <button type="button" @click="createProject()" :disabled="loadingCreateProj" class="w-full bg-slate-800 text-white text-xs py-2 rounded font-semibold hover:bg-slate-900">
+                        <span x-show="!loadingCreateProj">Create Project</span>
+                        <span x-show="loadingCreateProj">Creating...</span>
+                    </button>
+                    <div x-show="createProjMsg" x-text="createProjMsg" class="text-[11px] text-center text-amber-600"></div>
+                </div>
+            </div>
+
+            <!-- Projects List -->
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+                    <h2 class="font-bold text-slate-900">Research Projects</h2>
+                </div>
+                <div class="p-2 max-h-[40vh] overflow-y-auto">
+                    {% for p in projects %}
+                    <button @click="loadProject('{{ p.id }}')"
+                            class="w-full text-left px-3 py-3 rounded text-sm transition-colors border mb-1"
+                            :class="activeProjectId === '{{ p.id }}' ? 'bg-slate-100 border-slate-300 text-slate-900 font-semibold shadow-sm' : 'border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900'">
+                        {{ p.name }}
+                        <div class="text-[10px] uppercase font-bold mt-1 text-slate-500">
+                            Status: {{ p.status }}
+                        </div>
+                    </button>
+                    {% endfor %}
+                    <template x-for="p in newProjects" :key="p.id">
+                        <button @click="loadProject(p.id)"
+                                class="w-full text-left px-3 py-3 rounded text-sm transition-colors border mb-1"
+                                :class="activeProjectId === p.id ? 'bg-slate-100 border-slate-300 text-slate-900 font-semibold shadow-sm' : 'border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900'">
+                            <span x-text="p.name"></span>
+                            <div class="text-[10px] uppercase font-bold mt-1 text-slate-500">Status: <span x-text="p.status"></span></div>
+                        </button>
+                    </template>
+                    {% if not projects %}
+                    <div x-show="!newProjects.length" class="text-xs text-slate-500 p-4 text-center">No active projects.</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Notebook Entry Form -->
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm p-4" x-show="activeProjectId" x-cloak>
+                <h3 class="font-bold text-slate-900 mb-3 text-sm">Add Notebook Entry</h3>
+                <form @submit.prevent="addNotebookEntry" class="space-y-3">
+                    <div>
+                        <select x-model="notebookType" class="w-full text-xs rounded border-slate-300">
+                            <option value="Observation">Observation</option>
+                            <option value="Hypothesis">Hypothesis</option>
+                            <option value="Conclusion">Conclusion</option>
+                            <option value="Question">Question</option>
+                            <option value="Action Item">Action Item</option>
+                            <option value="Meeting Note">Meeting Note</option>
+                        </select>
+                    </div>
+                    <div>
+                        <textarea x-model="notebookContent" class="w-full text-xs rounded border-slate-300" rows="4" placeholder="Log your scientific thoughts..." required></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-slate-800 text-white text-xs py-2 rounded font-semibold hover:bg-slate-900" :disabled="loadingNotebook">
+                        <span x-show="!loadingNotebook">Save to Ledger</span>
+                        <span x-show="loadingNotebook">Saving...</span>
+                    </button>
+                </form>
+                <div id="notebook-res" class="mt-2"></div>
+            </div>
+
+            <!-- Add Literature -->
+            <div class="rounded-lg border border-slate-200 bg-white shadow-sm p-4" x-show="activeProjectId" x-cloak>
+                <h3 class="font-bold text-slate-900 mb-3 text-sm">Add Literature (Crossref API)</h3>
+                <form @submit.prevent="addLiterature" class="space-y-3">
+                    <div>
+                        <input type="text" x-model="litDoi" class="w-full text-xs rounded border-slate-300" placeholder="10.1021/acs.jmedchem..." required>
+                    </div>
+                    <button type="submit" class="w-full bg-indigo-600 text-white text-xs py-2 rounded font-semibold hover:bg-indigo-700" :disabled="loadingLit">
+                        <span x-show="!loadingLit">Fetch & Save</span>
+                        <span x-show="loadingLit">Fetching...</span>
+                    </button>
+                </form>
+                <div id="literature-res" class="mt-3 max-h-48 overflow-y-auto"></div>
+            </div>
+
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 space-y-6">
+            <div x-show="!activeProjectId" class="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400">
+                <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path></svg>
+                <p>Select a Research Project to view its timeline, knowledge graph, and reports.</p>
+            </div>
+
+            <div x-show="activeProjectId" x-cloak class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <!-- Timeline -->
+                <div class="rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col h-[600px]">
+                    <div class="bg-slate-50 border-b border-slate-200 p-4 flex justify-between items-center">
+                        <h2 class="font-bold text-slate-900">Scientific Timeline</h2>
+                        <button @click="loadTimeline" class="text-xs text-slate-500 hover:text-slate-800">↻ Refresh</button>
+                    </div>
+                    <div id="timeline-container" class="p-4 flex-1 overflow-y-auto" @refreshTimeline.window="loadTimeline()">
+                        <!-- HTMX Timeline injected here -->
+                    </div>
+                </div>
+
+                <!-- Tabs for Graph & AI & Reports -->
+                <div class="rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col h-[600px]">
+                    <div class="bg-slate-50 border-b border-slate-200 flex text-sm font-semibold text-slate-600">
+                        <button class="px-4 py-3 hover:bg-slate-100 border-b-2" :class="activeTab === 'graph' ? 'border-slate-800 text-slate-900' : 'border-transparent'" @click="activeTab = 'graph'">Knowledge Graph</button>
+                        <button class="px-4 py-3 hover:bg-slate-100 border-b-2" :class="activeTab === 'ai' ? 'border-slate-800 text-slate-900' : 'border-transparent'" @click="activeTab = 'ai'">AI Assistant</button>
+                        <button class="px-4 py-3 hover:bg-slate-100 border-b-2" :class="activeTab === 'report' ? 'border-slate-800 text-slate-900' : 'border-transparent'" @click="activeTab = 'report'">Thesis Support</button>
+                    </div>
+                    
+                    <div class="p-4 flex-1 overflow-y-auto">
+                        <!-- Knowledge Graph -->
+                        <div x-show="activeTab === 'graph'" class="h-full flex flex-col">
+                            <div class="text-xs text-slate-500 mb-2">Relational traverse mapping Portfolios &rarr; Campaigns &rarr; Series</div>
+                            <div id="kg-network" class="border border-slate-200 rounded flex-1 bg-slate-50"></div>
+                        </div>
+
+                        <!-- AI Assistant -->
+                        <div x-show="activeTab === 'ai'" class="space-y-4">
+                            <div class="flex gap-2">
+                                <button @click="runAiSummary" class="text-xs bg-slate-800 text-white font-bold px-3 py-2 rounded" :disabled="loadingAiSummary">
+                                    <span x-show="!loadingAiSummary">Project Executive Summary</span>
+                                    <span x-show="loadingAiSummary">Summarizing...</span>
+                                </button>
+                                <button @click="runAiLessons" class="text-xs bg-indigo-100 text-indigo-700 font-bold px-3 py-2 rounded" :disabled="loadingAiLessons">
+                                    <span x-show="!loadingAiLessons">Extract Lessons Learned</span>
+                                    <span x-show="loadingAiLessons">Extracting...</span>
+                                </button>
+                            </div>
+                            <div id="ai-assistant-res" class="bg-slate-50 rounded p-4 border border-slate-200 min-h-[300px]">
+                                <p class="text-slate-400 text-sm text-center mt-20">Select an AI action above.</p>
+                            </div>
+                        </div>
+
+                        <!-- Report Generator -->
+                        <div x-show="activeTab === 'report'" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">Campaign for Report</label>
+                                <select x-model="reportCampaignId" class="w-full text-sm rounded border-slate-300">
+                                    <option value="">— select campaign —</option>
+                                    <template x-for="c in projectCampaigns" :key="c.id">
+                                        <option :value="c.id" x-text="c.name"></option>
+                                    </template>
+                                </select>
+                                <div x-show="!projectCampaigns.length" class="text-[10px] text-slate-400 mt-1">
+                                    This project has no campaigns yet. Create one in Lead Optimization.
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="generateReport('html')" class="text-xs bg-white border border-slate-300 text-slate-700 font-bold px-3 py-2 rounded hover:bg-slate-50">View HTML Table</button>
+                                <button @click="generateReport('markdown')" class="text-xs bg-white border border-slate-300 text-slate-700 font-bold px-3 py-2 rounded hover:bg-slate-50">Export Markdown</button>
+                            </div>
+                            <div id="report-res" class="mt-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+let network = null;
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('researchApp', () => ({
+        // The project comes from the URL, so open it immediately — the user
+        // never has to pick it again inside the module.
+        activeProjectId: '{{ project.id if project else "" }}' || null,
+        activeTab: 'graph',
+
+        // Campaigns reachable from this project (Project -> Portfolio -> Campaign)
+        projectCampaigns: [],
+
+        init() {
+            if (this.activeProjectId) {
+                this.loadProject(this.activeProjectId);
+                this.loadProjectCampaigns();
+            }
+        },
+
+        async loadProjectCampaigns() {
+            const res = await fetch(`/api/lead-opt/campaigns?project_id=${this.activeProjectId}`);
+            if (res.ok) this.projectCampaigns = await res.json();
+        },
+
+        // Project creation
+        newProjects: [],
+        projName: '',
+        projTarget: '',
+        projObjectives: '',
+        loadingCreateProj: false,
+        createProjMsg: '',
+
+        // Form states
+        notebookType: 'Observation',
+        notebookContent: '',
+        loadingNotebook: false,
+        
+        litDoi: '',
+        loadingLit: false,
+        
+        // AI states
+        loadingAiSummary: false,
+        loadingAiLessons: false,
+        
+        // Report states
+        reportCampaignId: '',
+        
+        async createProject() {
+            if (!this.projName.trim()) { this.createProjMsg = 'Enter a project name.'; return; }
+            this.loadingCreateProj = true;
+            this.createProjMsg = '';
+            try {
+                const fd = new FormData();
+                fd.append('name', this.projName);
+                fd.append('target', this.projTarget);
+                fd.append('objectives', this.projObjectives);
+                const res = await fetch('/api/research-os/project', { method: 'POST', body: fd });
+                if (res.ok) {
+                    const p = await res.json();
+                    this.newProjects.unshift(p);
+                    this.projName = '';
+                    this.projTarget = '';
+                    this.projObjectives = '';
+                    this.loadProject(p.id);
+                } else {
+                    this.createProjMsg = 'Create failed.';
+                }
+            } finally {
+                this.loadingCreateProj = false;
+            }
+        },
+
+        async loadProject(projectId) {
+            this.activeProjectId = projectId;
+            await this.loadTimeline();
+            await this.renderKnowledgeGraph();
+            document.getElementById('ai-assistant-res').innerHTML = '<p class="text-slate-400 text-sm text-center mt-20">Select an AI action above.</p>';
+        },
+        
+        async loadTimeline() {
+            if (!this.activeProjectId) return;
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '<div class="text-center text-sm text-slate-500 mt-10 animate-pulse">Loading timeline...</div>';
+            
+            const res = await fetch(`/api/research-os/project/${this.activeProjectId}/timeline`);
+            if (res.ok) {
+                container.innerHTML = await res.text();
+            }
+        },
+        
+        async addNotebookEntry() {
+            this.loadingNotebook = true;
+            const fd = new FormData();
+            fd.append('entry_type', this.notebookType);
+            fd.append('content', this.notebookContent);
+            fd.append('entity_type', 'Project');
+            
+            try {
+                const res = await fetch(`/api/research-os/project/${this.activeProjectId}/notebook`, {
+                    method: 'POST',
+                    body: fd
+                });
+                if (res.ok) {
+                    document.getElementById('notebook-res').innerHTML = await res.text();
+                    this.notebookContent = '';
+                    this.loadTimeline();
+                }
+            } finally {
+                this.loadingNotebook = false;
+                setTimeout(() => { document.getElementById('notebook-res').innerHTML = ''; }, 3000);
+            }
+        },
+        
+        async addLiterature() {
+            this.loadingLit = true;
+            const fd = new FormData();
+            fd.append('doi', this.litDoi);
+            
+            try {
+                const res = await fetch(`/api/research-os/project/${this.activeProjectId}/literature`, {
+                    method: 'POST',
+                    body: fd
+                });
+                if (res.ok) {
+                    const html = await res.text();
+                    document.getElementById('literature-res').insertAdjacentHTML('afterbegin', html);
+                    this.litDoi = '';
+                }
+            } finally {
+                this.loadingLit = false;
+            }
+        },
+        
+        async renderKnowledgeGraph() {
+            if (network) { network.destroy(); network = null; }
+            
+            const res = await fetch(`/api/research-os/project/${this.activeProjectId}/graph`);
+            if (!res.ok) return;
+            const kg = await res.json();
+            
+            // Build Vis.js nodes/edges
+            const nodes = [{ id: kg.id, label: kg.name, group: 'project' }];
+            const edges = [];
+            
+            kg.portfolios.forEach(port => {
+                nodes.push({ id: port.id, label: 'Portfolio', group: 'portfolio' });
+                edges.push({ from: kg.id, to: port.id });
+                
+                port.campaigns.forEach(camp => {
+                    nodes.push({ id: camp.id, label: camp.name, group: 'campaign' });
+                    edges.push({ from: port.id, to: camp.id });
+                    
+                    camp.series.forEach(ser => {
+                        nodes.push({ id: ser.id, label: ser.name, group: 'series' });
+                        edges.push({ from: camp.id, to: ser.id });
+                    });
+                });
+            });
+            
+            const container = document.getElementById('kg-network');
+            const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
+            const options = {
+                nodes: { shape: 'dot', size: 16, font: { size: 12 } },
+                groups: {
+                    project: { color: { background: '#1e293b', border: '#0f172a' }, font: { color: '#ffffff' } },
+                    portfolio: { color: { background: '#64748b' } },
+                    campaign: { color: { background: '#818cf8' } },
+                    series: { color: { background: '#34d399' } }
+                },
+                physics: { stabilization: true }
+            };
+            network = new vis.Network(container, data, options);
+        },
+        
+        async runAiSummary() {
+            this.loadingAiSummary = true;
+            document.getElementById('ai-assistant-res').innerHTML = '<div class="animate-pulse text-slate-500 font-bold">Synthesizing project history...</div>';
+            
+            try {
+                const res = await fetch(`/api/research-os/project/${this.activeProjectId}/ai-summarize`, { method: 'POST' });
+                if (res.ok) {
+                    document.getElementById('ai-assistant-res').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingAiSummary = false;
+            }
+        },
+        
+        async runAiLessons() {
+            this.loadingAiLessons = true;
+            document.getElementById('ai-assistant-res').innerHTML = '<div class="animate-pulse text-indigo-500 font-bold">Extracting lessons learned...</div>';
+            
+            try {
+                const res = await fetch(`/api/research-os/project/${this.activeProjectId}/ai-lessons`, { method: 'POST' });
+                if (res.ok) {
+                    document.getElementById('ai-assistant-res').innerHTML = await res.text();
+                }
+            } finally {
+                this.loadingAiLessons = false;
+            }
+        },
+        
+        async generateReport(fmt) {
+            if (!this.reportCampaignId) {
+                alert("Please select a campaign.");
+                return;
+            }
+            const container = document.getElementById('report-res');
+            container.innerHTML = 'Generating...';
+            
+            const res = await fetch(`/api/research-os/report/campaign/${this.reportCampaignId}/thesis?format=${fmt}`);
+            if (res.ok) {
+                container.innerHTML = await res.text();
+            } else {
+                container.innerHTML = 'Report generation failed.';
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

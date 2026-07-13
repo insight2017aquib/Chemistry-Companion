@@ -1,216 +1,868 @@
 {% extends "base.html" %}
-{% block title %}Docking Workspace — Chemistry Companion{% endblock %}
+{% block title %}Docking Workspace - Chemistry Companion{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/molstar@5.4.2/build/viewer/molstar.css">
+<style>
+    [x-cloak] { display: none !important; }
+
+    .molstar-preview-shell {
+        min-height: 34rem;
+    }
+
+    .molstar-preview-host {
+        position: relative;
+        height: 34rem;
+        min-height: 34rem;
+        overflow: hidden;
+        background: #f8fafc;
+    }
+
+    .molstar-preview-host .msp-plugin {
+        position: absolute;
+        inset: 0;
+    }
+
+    .gridbox-overlay {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(46%, 18rem);
+        aspect-ratio: 1 / 1;
+        transform: translate(-50%, -50%);
+        border: 2px solid rgba(245, 158, 11, 0.92);
+        box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2), 0 0 26px rgba(245, 158, 11, 0.28);
+        pointer-events: none;
+    }
+
+    .gridbox-overlay::before,
+    .gridbox-overlay::after {
+        content: "";
+        position: absolute;
+        inset: 12%;
+        border: 1px dashed rgba(245, 158, 11, 0.78);
+    }
+
+    .gridbox-overlay::after {
+        transform: translate(12px, -12px);
+    }
+
+    .pocket-overlay {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: min(32%, 12rem);
+        aspect-ratio: 1 / 1;
+        transform: translate(-50%, -50%);
+        border: 2px solid rgba(14, 165, 233, 0.86);
+        border-radius: 999px;
+        box-shadow: 0 0 0 8px rgba(14, 165, 233, 0.12), 0 0 28px rgba(14, 165, 233, 0.24);
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <header class="mb-4 flex justify-between items-end">
+<div class="space-y-6" x-data="dockingWorkspace()">
+    <header class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Docking Workspace</h1>
-            <p class="text-slate-500 mt-2">End-to-end protein-ligand docking powered by AutoDock Vina.</p>
+            <h1 class="text-3xl font-bold text-slate-900">Docking Workspace</h1>
+            <p class="mt-2 max-w-3xl text-sm text-slate-500">
+                Prepare receptors with live Mol* visualization, pocket-aware controls, and no page refreshes.
+            </p>
+        </div>
+        <div class="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span>Mol* live workspace</span>
         </div>
     </header>
 
-    <div class="card p-0 border border-border overflow-hidden" x-data="dockingWorkspace()">
-        <div x-show="errorMessage" x-cloak class="m-6 mb-0 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-700" x-text="errorMessage"></div>
-        <div x-show="statusMessage" x-cloak class="m-6 mb-0 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700" x-text="statusMessage"></div>
-        
-        <!-- Grid Header for Steps -->
-        <div class="grid grid-cols-4 bg-slate-50 dark:bg-slate-900 border-b border-border text-sm font-bold text-slate-500">
-            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 1}">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 1 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">1</div> 
-                Protein Prep
-            </div>
-            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 2}">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 2 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">2</div> 
-                Ligand Prep
-            </div>
-            <div class="p-4 flex items-center gap-2 border-r border-border" :class="{'text-primary bg-white dark:bg-slate-800': step >= 3}">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 3 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">3</div> 
-                Grid Box
-            </div>
-            <div class="p-4 flex items-center gap-2" :class="{'text-primary bg-white dark:bg-slate-800': step >= 4}">
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs" :class="step >= 4 ? 'bg-primary text-white' : 'bg-slate-200 text-slate-500'">4</div> 
-                Run & Results
-            </div>
-        </div>
+    <div x-show="errorMessage" x-cloak class="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700" x-text="errorMessage"></div>
+    <div x-show="statusMessage" x-cloak class="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700" x-text="statusMessage"></div>
 
-        <div class="p-6">
-            
-            <!-- STEP 1: Protein -->
-            <div x-show="step === 1" class="space-y-4">
-                <h3 class="text-xl font-bold">1. Upload & Prepare Protein</h3>
-                <p class="text-slate-500 text-sm">Upload a PDB file. We will remove waters, add polar hydrogens, and compute Gasteiger charges.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <form @submit.prevent="prepareProtein" class="space-y-4">
-                        <input type="file" x-ref="proteinFile" accept=".pdb" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                        <div class="flex gap-4">
-                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="removeWater" class="rounded text-primary"> Remove Waters</label>
-                            <label class="flex items-center gap-2 text-sm"><input type="checkbox" x-model="addCharges" class="rounded text-primary"> Add Charges</label>
-                        </div>
-                        <button type="submit" class="btn-primary w-full" :disabled="loading">
-                            <span x-show="!loading">Prepare Protein &rarr;</span>
-                            <span x-show="loading">Preparing...</span>
-                        </button>
-                        <div x-show="proteinError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="proteinError"></div>
-                    </form>
-                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-green-600 border border-border h-48 overflow-y-auto" x-text="log1"></div>
-                </div>
-            </div>
-
-            <!-- STEP 2: Ligand -->
-            <div x-show="step === 2" class="space-y-4" x-cloak>
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold">2. Ligand Selection</h3>
-                    <button @click="step = 1" class="text-sm text-slate-500 hover:text-slate-700">&larr; Back to Protein</button>
-                </div>
-                <p class="text-slate-500 text-sm">Provide a SMILES string to generate the 3D ligand conformation for docking.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <form @submit.prevent="prepareLigand" class="space-y-4">
-                        <input type="text" x-model="ligandSmiles" placeholder="SMILES (e.g. CC(=O)Oc1ccccc1C(=O)O)" required class="w-full border border-border rounded p-2 text-sm bg-bg">
-                        <button type="submit" class="btn-primary w-full" :disabled="loading">
-                            <span x-show="!loading">Prepare Ligand &rarr;</span>
-                            <span x-show="loading">Preparing...</span>
-                        </button>
-                        <div x-show="ligandError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="ligandError"></div>
-                    </form>
-                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-green-600 border border-border h-48 overflow-y-auto" x-text="log2"></div>
-                </div>
-            </div>
-
-            <!-- STEP 3: Grid Box -->
-            <div x-show="step === 3" class="space-y-4" x-cloak>
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold">3. Grid Box Configuration</h3>
-                    <button @click="step = 2" class="text-sm text-slate-500 hover:text-slate-700">&larr; Back to Ligand</button>
-                </div>
-                <p class="text-slate-500 text-sm">Define the binding site search space.</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <form @submit.prevent="saveGridbox" class="space-y-4">
-                        <button type="button" @click="autoGrid" class="btn-secondary w-full border-dashed" :disabled="loading">Auto-Detect from Protein</button>
-                        
-                        <div class="grid grid-cols-3 gap-4">
-                            <div><label class="text-xs text-slate-500 block mb-1">Center X</label><input type="number" step="0.1" x-model="grid.center_x" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                            <div><label class="text-xs text-slate-500 block mb-1">Center Y</label><input type="number" step="0.1" x-model="grid.center_y" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                            <div><label class="text-xs text-slate-500 block mb-1">Center Z</label><input type="number" step="0.1" x-model="grid.center_z" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div><label class="text-xs text-slate-500 block mb-1">Size X (Å)</label><input type="number" step="1" x-model="grid.size_x" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                            <div><label class="text-xs text-slate-500 block mb-1">Size Y (Å)</label><input type="number" step="1" x-model="grid.size_y" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                            <div><label class="text-xs text-slate-500 block mb-1">Size Z (Å)</label><input type="number" step="1" x-model="grid.size_z" class="w-full border border-border rounded p-1 text-sm bg-bg" required></div>
-                        </div>
-                        
-                        <button type="submit" class="btn-primary w-full" :disabled="loading">Confirm Grid Box &rarr;</button>
-                        <div x-show="gridError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="gridError"></div>
-                    </form>
-                    <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 border border-border h-48 overflow-y-auto">
-                        <div class="font-mono text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line" x-text="gridSummary"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- STEP 4: Run -->
-            <div x-show="step === 4" class="space-y-4" x-cloak>
-                <div class="flex justify-between items-center">
-                    <h3 class="text-xl font-bold">4. Execution & Results</h3>
-                    <button @click="step = 3" class="text-sm text-slate-500 hover:text-slate-700" :disabled="loading">&larr; Back to Grid</button>
-                </div>
-                
-                <div class="flex gap-4 mb-4">
-                    <label class="text-sm flex items-center gap-2">Exhaustiveness: <input type="number" x-model="exhaustiveness" class="border rounded p-1 w-16 bg-bg"></label>
-                    <label class="text-sm flex items-center gap-2">Poses: <input type="number" x-model="numModes" class="border rounded p-1 w-16 bg-bg"></label>
-                </div>
-                
-                <div x-show="!canRun" class="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    Prepare a protein, prepare a ligand, and confirm a valid grid box before launching Vina.
-                </div>
-
-                <button @click="runDocking" class="btn-primary w-full py-3 text-lg font-bold" :disabled="loading || !canRun">
-                    <span x-show="!loading">Launch AutoDock Vina</span>
-                    <span x-show="loading" class="animate-pulse">Docking in progress...</span>
+    <section class="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div class="grid border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500 sm:grid-cols-2 lg:grid-cols-7">
+            <template x-for="item in wizardSteps" :key="item.id">
+                <button type="button"
+                        @click="goToStep(item.id)"
+                        :disabled="!canVisitStep(item.id)"
+                        class="flex min-h-16 items-center gap-2 border-b border-r border-slate-200 px-3 py-3 text-left transition last:border-r-0 lg:border-b-0"
+                        :class="step === item.id ? 'bg-white text-blue-700' : (item.id < step ? 'text-slate-800' : 'text-slate-500 disabled:cursor-not-allowed disabled:opacity-45')">
+                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs"
+                          :class="step === item.id ? 'bg-blue-600 text-white' : (item.id < step ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600')"
+                          x-text="item.id"></span>
+                    <span class="leading-tight" x-text="item.label"></span>
                 </button>
-                <div x-show="runError" x-cloak class="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="runError"></div>
-                <div class="bg-slate-50 dark:bg-slate-900 rounded p-4 font-mono text-xs text-slate-600 dark:text-slate-300 border border-border min-h-24 whitespace-pre-line" x-text="runLog"></div>
-                
-                <div x-show="report" class="mt-8 border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/20 rounded p-6">
-                    <h4 class="text-xl font-bold text-green-800 dark:text-green-400 mb-4 flex items-center gap-2">Docking Completed Successfully</h4>
-                    <p class="mb-4">Best Binding Affinity: <strong class="text-2xl" x-text="report?.best_affinity + ' kcal/mol'"></strong></p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4 text-sm">
-                        <div class="rounded border border-green-200 bg-white/70 p-3">
-                            <div class="text-slate-500">Job ID</div>
-                            <div class="font-mono break-all" x-text="jobId || 'N/A'"></div>
+            </template>
+        </div>
+
+        <div class="grid gap-0 lg:grid-cols-[minmax(0,1fr)_28rem]">
+            <main class="min-h-[34rem] border-slate-200 p-5 lg:border-r">
+                <!-- STEP 1 -->
+                <section x-show="step === 1" class="space-y-5">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 1</p>
+                        <h2 class="mt-1 text-2xl font-bold text-slate-900">Upload Protein</h2>
+                        <p class="mt-2 text-sm text-slate-500">Load a PDB file to start receptor analysis and live visualization.</p>
+                    </div>
+
+                    <div class="rounded-lg border border-dashed border-blue-300 bg-blue-50/60 p-5">
+                        <input type="file"
+                               x-ref="proteinFile"
+                               @change="handleProteinFileSelected"
+                               accept=".pdb,.ent,.pdbqt"
+                               class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700">
+                        <div class="mt-3 text-xs text-slate-500" x-text="proteinFileName ? `Selected: ${proteinFileName}` : 'Accepted formats: PDB, ENT, PDBQT'"></div>
+                    </div>
+
+                    <div class="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        <span class="h-px flex-1 bg-slate-200"></span><span>or fetch by ID</span><span class="h-px flex-1 bg-slate-200"></span>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-white p-5">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            <div class="flex-1">
+                                <label class="block text-xs font-semibold text-slate-600">Structure ID</label>
+                                <input type="text" x-model="pdbIdInput" placeholder="e.g. 4DUH"
+                                       @keydown.enter.prevent="fetchProteinById"
+                                       class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase placeholder:normal-case focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600">Source</label>
+                                <select x-model="fetchSource"
+                                        class="mt-1 block rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                                    <option value="">Auto-detect</option>
+                                    <template x-for="s in availableSources.filter(s => s.capabilities.remote)" :key="s.id">
+                                        <option :value="s.id" x-text="s.display_name"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            <button type="button" @click="fetchProteinById"
+                                    class="inline-flex items-center justify-center rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                                    :disabled="fetchingStructure || analysisLoading || !pdbIdInput.trim()">
+                                <span x-show="!fetchingStructure">Fetch</span>
+                                <span x-show="fetchingStructure">Fetching...</span>
+                            </button>
                         </div>
-                        <div class="rounded border border-green-200 bg-white/70 p-3">
-                            <div class="text-slate-500">Pose Count</div>
-                            <div class="font-semibold" x-text="report?.num_poses ?? 0"></div>
-                        </div>
-                        <div class="rounded border border-green-200 bg-white/70 p-3">
-                            <div class="text-slate-500">Vina Log</div>
-                            <div class="font-mono break-all" x-text="report?.artifacts?.vina_log || 'Saved in job workspace'"></div>
+                        <p x-show="fetchError" x-text="fetchError" class="mt-2 text-xs font-medium text-red-600"></p>
+                        <div x-show="structureMeta && (structureMeta.title || structureMeta.resolution)" class="mt-3 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                            <div class="font-semibold text-slate-800" x-text="structureMeta?.title || currentAssetId"></div>
+                            <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                                <span x-show="structureMeta?.method">Method: <span x-text="structureMeta.method"></span></span>
+                                <span x-show="structureMeta?.resolution">Resolution: <span x-text="structureMeta.resolution"></span> Å</span>
+                                <span x-show="structureMeta?.ligands?.length">Ligands: <span x-text="structureMeta.ligands.map(l => l.resname).join(', ')"></span></span>
+                            </div>
                         </div>
                     </div>
-                    <div class="overflow-x-auto mb-4">
-                        <table class="w-full text-sm">
-                            <thead class="text-left text-slate-500 border-b border-green-200">
-                                <tr>
-                                    <th class="py-2 pr-4">Rank</th>
-                                    <th class="py-2 pr-4">Affinity</th>
-                                    <th class="py-2 pr-4">RMSD LB</th>
-                                    <th class="py-2 pr-4">RMSD UB</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template x-for="pose in report?.poses || []" :key="pose.rank">
-                                    <tr class="border-b border-green-100">
-                                        <td class="py-2 pr-4" x-text="pose.rank"></td>
-                                        <td class="py-2 pr-4" x-text="`${pose.affinity} kcal/mol`"></td>
-                                        <td class="py-2 pr-4" x-text="pose.rmsd_lb"></td>
-                                        <td class="py-2 pr-4" x-text="pose.rmsd_ub"></td>
-                                    </tr>
+
+                    <div class="flex flex-col gap-3 sm:flex-row">
+                        <button type="button"
+                                @click="inspectProtein"
+                                class="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="analysisLoading || loading || !proteinFileName">
+                            <span x-show="!analysisLoading">Analyze Protein</span>
+                            <span x-show="analysisLoading">Analyzing...</span>
+                        </button>
+                        <button type="button"
+                                @click="resetWorkspace"
+                                class="inline-flex items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                            Reset Workspace
+                        </button>
+                    </div>
+
+                    <div class="rounded-md border border-slate-200 bg-slate-950 p-4 font-mono text-xs text-emerald-300">
+                        <div class="whitespace-pre-line" x-text="log1"></div>
+                    </div>
+                    <div x-show="analysisError" x-cloak class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="analysisError"></div>
+                </section>
+
+                <!-- STEP 2 -->
+                <section x-show="step === 2" class="space-y-5" x-cloak>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 2</p>
+                            <h2 class="mt-1 text-2xl font-bold text-slate-900">Protein Analysis</h2>
+                            <p class="mt-2 text-sm text-slate-500">Review structural quality, detected components, and receptor recommendations.</p>
+                        </div>
+                        <button type="button" @click="step = 3" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" :disabled="!proteinAnalysis">Continue</button>
+                    </div>
+
+                    <div x-show="proteinAnalysis" class="grid gap-3 md:grid-cols-4">
+                        <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+                            <div class="text-xs text-slate-500">Chains</div>
+                            <div class="mt-1 text-2xl font-bold text-slate-900" x-text="proteinAnalysis?.total_chains || 0"></div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+                            <div class="text-xs text-slate-500">Residues</div>
+                            <div class="mt-1 text-2xl font-bold text-slate-900" x-text="proteinAnalysis?.total_residues || 0"></div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+                            <div class="text-xs text-slate-500">Ligands</div>
+                            <div class="mt-1 text-2xl font-bold text-slate-900" x-text="(proteinAnalysis?.ligands || []).length"></div>
+                        </div>
+                        <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
+                            <div class="text-xs text-slate-500">Waters</div>
+                            <div class="mt-1 text-2xl font-bold text-slate-900" x-text="proteinAnalysis?.total_waters || 0"></div>
+                        </div>
+                    </div>
+
+                    <div x-show="proteinAnalysis" class="grid gap-4 lg:grid-cols-2">
+                        <div class="rounded-md border border-amber-200 bg-amber-50 p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="font-semibold text-amber-900">Recommendation Card</h3>
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold"
+                                      :class="confidenceClass(proteinAnalysis?.recommendation?.confidence)"
+                                      x-text="proteinAnalysis?.recommendation?.confidence || 'medium'"></span>
+                            </div>
+                            <p class="mt-3 text-sm text-amber-900" x-text="proteinAnalysis?.recommendation?.rationale || 'No receptor recommendation is available yet.'"></p>
+                            <div class="mt-3 text-xs text-amber-700">
+                                Recommended chains:
+                                <strong x-text="(proteinAnalysis?.recommendation?.recommended_chain_ids || []).join(', ') || 'none'"></strong>
+                            </div>
+                        </div>
+
+                        <div class="rounded-md border border-slate-200 bg-white p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="font-semibold text-slate-900">Quality Badge</h3>
+                                <span class="rounded-full px-2 py-1 text-xs font-semibold"
+                                      :class="qualityBadgeClass(proteinAnalysis?.quality_label)"
+                                      x-text="proteinAnalysis?.quality_label || 'Unknown'"></span>
+                            </div>
+                            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <dt class="text-xs text-slate-500">Score</dt>
+                                    <dd class="font-semibold" x-text="proteinAnalysis?.quality_score ?? 'N/A'"></dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-slate-500">Resolution</dt>
+                                    <dd class="font-semibold" x-text="proteinAnalysis?.resolution ? `${proteinAnalysis.resolution.toFixed(2)} A` : 'N/A'"></dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-slate-500">Method</dt>
+                                    <dd class="font-semibold" x-text="proteinAnalysis?.experimental_method || 'N/A'"></dd>
+                                </div>
+                                <div>
+                                    <dt class="text-xs text-slate-500">Missing residues</dt>
+                                    <dd class="font-semibold" x-text="(proteinAnalysis?.missing_residues || []).length"></dd>
+                                </div>
+                            </dl>
+                        </div>
+                    </div>
+
+                    <div x-show="proteinAnalysis" class="rounded-md border border-indigo-200 bg-indigo-50/70 p-4">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="font-semibold text-indigo-900">AI Expert Recommendation</h3>
+                                <p class="mt-1 text-sm text-indigo-800" x-text="aiRecommendation?.rationale || 'Ask the docking expert for a second-pass chain recommendation.'"></p>
+                            </div>
+                            <button type="button"
+                                    @click="requestAiChainRecommendation"
+                                    class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                    :disabled="aiLoading || !proteinAnalysis">
+                                <span x-show="!aiLoading">Ask AI Expert</span>
+                                <span x-show="aiLoading">Consulting...</span>
+                            </button>
+                        </div>
+                        <div x-show="aiRecommendation" x-cloak class="mt-3 flex flex-wrap items-center gap-2 text-xs text-indigo-800">
+                            <span class="rounded-full px-2 py-1 font-semibold" :class="confidenceClass(aiRecommendation?.confidence)" x-text="`Confidence: ${aiRecommendation?.confidence || 'medium'}`"></span>
+                            <button type="button" @click="applyAiRecommendation" class="rounded border border-indigo-300 px-2 py-1 font-semibold hover:bg-indigo-100">Use AI Recommendation</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STEP 3 -->
+                <section x-show="step === 3" class="space-y-5" x-cloak>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 3</p>
+                            <h2 class="mt-1 text-2xl font-bold text-slate-900">Chain Selection</h2>
+                            <p class="mt-2 text-sm text-slate-500">Choose chains for receptor generation and independently toggle their live display.</p>
+                        </div>
+                        <button type="button" @click="step = 4" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Continue</button>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" @click="selectAllChains" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Select All</button>
+                        <button type="button" @click="selectRecommendedChains" class="rounded-md border border-amber-300 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50">Select Recommended</button>
+                    </div>
+
+                    <div class="grid gap-3 md:grid-cols-2">
+                        <template x-for="chain in availableChains" :key="chain.chain_id">
+                            <div class="rounded-md border border-slate-200 p-4"
+                                 :class="selectedChains.includes(chain.chain_id) ? 'bg-blue-50 border-blue-200' : 'bg-white'">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="text-xs text-slate-500">Chain</div>
+                                        <div class="mt-1 font-mono text-2xl font-bold" x-text="chain.chain_id || '_'"></div>
+                                    </div>
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold"
+                                          :class="chain.is_likely_protein ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                                          x-text="chain.is_likely_protein ? 'Protein' : 'Other'"></span>
+                                </div>
+                                <dl class="mt-4 grid grid-cols-3 gap-2 text-sm">
+                                    <div><dt class="text-xs text-slate-500">Residues</dt><dd class="font-semibold" x-text="chain.num_residues"></dd></div>
+                                    <div><dt class="text-xs text-slate-500">Hetero</dt><dd class="font-semibold" x-text="chain.num_hetero"></dd></div>
+                                    <div><dt class="text-xs text-slate-500">Waters</dt><dd class="font-semibold" x-text="chain.num_waters"></dd></div>
+                                </dl>
+                                <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                    <label class="flex items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2">
+                                        <input type="checkbox" class="rounded text-blue-600"
+                                               :checked="selectedChains.includes(chain.chain_id)"
+                                               @change="toggleChain(chain.chain_id)">
+                                        Use in receptor
+                                    </label>
+                                    <label class="flex items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2">
+                                        <input type="checkbox" class="rounded text-blue-600"
+                                               :checked="visibleChains.includes(chain.chain_id)"
+                                               @change="toggleVisibleChain(chain.chain_id)">
+                                        <span x-text="`Show Chain ${chain.chain_id || '_'}`"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
+                <!-- STEP 4 -->
+                <section x-show="step === 4" class="space-y-5" x-cloak>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 4</p>
+                            <h2 class="mt-1 text-2xl font-bold text-slate-900">Pocket Selection</h2>
+                            <p class="mt-2 text-sm text-slate-500">Select ligand-defined or predicted pockets to highlight and seed the grid box.</p>
+                        </div>
+                        <button type="button" @click="step = 5" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Continue</button>
+                    </div>
+
+                    <div>
+                        <h3 class="mb-3 font-semibold text-slate-900">Pocket Cards</h3>
+                    </div>
+                    <div class="grid gap-3">
+                        <template x-for="pocket in pocketCards" :key="pocket.key">
+                            <button type="button"
+                                    @click="selectPocket(pocket)"
+                                    class="rounded-md border p-4 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                                    :class="selectedPocket?.key === pocket.key ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white'">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-500" x-text="pocket.typeLabel"></div>
+                                        <div class="mt-1 text-lg font-bold text-slate-900" x-text="pocket.title"></div>
+                                    </div>
+                                    <span class="rounded-full px-2 py-1 text-xs font-semibold"
+                                          :class="confidenceClass(pocket.confidence)"
+                                          x-text="pocket.confidence || pocket.scoreLabel || 'medium'"></span>
+                                </div>
+                                <div class="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                                    <div><span class="text-slate-500">Center:</span> <span class="font-mono" x-text="formatCenter(pocket.center)"></span></div>
+                                    <div><span class="text-slate-500">Radius:</span> <span class="font-semibold" x-text="pocket.radius ? `${pocket.radius} A` : 'N/A'"></span></div>
+                                    <div><span class="text-slate-500">Residues:</span> <span class="font-semibold" x-text="(pocket.nearby_residues || []).length || 'N/A'"></span></div>
+                                </div>
+                            </button>
+                        </template>
+
+                        <div x-show="!pocketCards.length" class="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                            No ligand-defined or predicted pockets were returned. You can still define a grid manually in Step 7.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STEP 5 -->
+                <section x-show="step === 5" class="space-y-5" x-cloak>
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 5</p>
+                            <h2 class="mt-1 text-2xl font-bold text-slate-900">Preparation Options</h2>
+                            <p class="mt-2 text-sm text-slate-500">Review waters, metals, cofactors, and receptor cleanup choices.</p>
+                        </div>
+                        <button type="button" @click="step = 6" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Continue</button>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <label class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm">
+                            <span><strong>Remove waters</strong><br><span class="text-xs text-slate-500">Bulk solvent is excluded from receptor generation.</span></span>
+                            <input type="checkbox" x-model="removeWater" class="rounded text-blue-600">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm">
+                            <span><strong>Keep active-site waters</strong><br><span class="text-xs text-slate-500">Preserve waters classified near binding sites.</span></span>
+                            <input type="checkbox" x-model="keepActiveSiteWaters" class="rounded text-blue-600">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm">
+                            <span><strong>Keep metals</strong><br><span class="text-xs text-slate-500">Retain catalytic or structural ions.</span></span>
+                            <input type="checkbox" x-model="keepMetals" class="rounded text-blue-600">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white p-4 text-sm">
+                            <span><strong>Keep cofactors</strong><br><span class="text-xs text-slate-500">Retain enzymatic cofactors when required.</span></span>
+                            <input type="checkbox" x-model="keepCofactors" class="rounded text-blue-600">
+                        </label>
+                    </div>
+
+                    <div class="grid gap-4 xl:grid-cols-3">
+                        <div class="rounded-md border border-cyan-200 bg-cyan-50 p-4">
+                            <h3 class="font-semibold text-cyan-950">Water Cards</h3>
+                            <p class="mt-1 text-sm text-cyan-800" x-text="waterSummaryText"></p>
+                            <div class="mt-3 space-y-2">
+                                <template x-for="water in topWaterCards" :key="`${water.chain_id}:${water.resnum}`">
+                                    <div class="rounded border border-cyan-200 bg-white/80 p-2 text-xs">
+                                        <strong x-text="`HOH ${water.chain_id}:${water.resnum}`"></strong>
+                                        <span x-text="` - ${water.category || 'unclassified'} - ${water.recommendation || 'review'}`"></span>
+                                    </div>
                                 </template>
-                            </tbody>
-                        </table>
+                                <div x-show="!topWaterCards.length" class="text-sm text-cyan-800">No waters detected or classification unavailable.</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-md border border-slate-200 bg-white p-4">
+                            <h3 class="font-semibold text-slate-900">Metal Cards</h3>
+                            <div class="mt-3 space-y-2">
+                                <template x-for="metal in (proteinAnalysis?.metals || [])" :key="`${metal.chain_id}:${metal.resnum}:${metal.element}`">
+                                    <div class="rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                                        <strong x-text="`${metal.element || metal.resname} ${metal.chain_id}:${metal.resnum}`"></strong>
+                                        <span x-text="` - catalytic relevance: ${metal.catalytic_relevance || 'unknown'}`"></span>
+                                    </div>
+                                </template>
+                                <div x-show="!(proteinAnalysis?.metals || []).length" class="text-sm text-slate-500">No metals detected.</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-md border border-emerald-200 bg-emerald-50 p-4">
+                            <h3 class="font-semibold text-emerald-950">Cofactor Cards</h3>
+                            <div class="mt-3 space-y-2">
+                                <template x-for="cofactor in (proteinAnalysis?.cofactors || [])" :key="`${cofactor.chain_id}:${cofactor.resnum}:${cofactor.resname}`">
+                                    <div class="rounded border border-emerald-200 bg-white/80 p-2 text-xs">
+                                        <strong x-text="`${cofactor.resname} ${cofactor.chain_id}:${cofactor.resnum}`"></strong>
+                                        <span x-text="` - ${cofactor.classification || 'cofactor'} - ${cofactor.status || 'optional'}`"></span>
+                                    </div>
+                                </template>
+                                <div x-show="!(proteinAnalysis?.cofactors || []).length" class="text-sm text-emerald-800">No cofactors detected.</div>
+                            </div>
+                        </div>
                     </div>
-                    <a href="/pose-analysis" class="btn-primary inline-block">Proceed to Pose Analysis &rarr;</a>
+                </section>
+
+                <!-- STEP 6 -->
+                <section x-show="step === 6" class="space-y-5" x-cloak>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 6</p>
+                        <h2 class="mt-1 text-2xl font-bold text-slate-900">Generate Receptor</h2>
+                        <p class="mt-2 text-sm text-slate-500">Create the PDBQT receptor using the selected chains and preparation options.</p>
+                    </div>
+
+                    <div class="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
+                        <div><strong>Selected chains:</strong> <span x-text="selectedChains.join(', ') || 'full structure'"></span></div>
+                        <div><strong>Waters:</strong> <span x-text="removeWater ? (keepActiveSiteWaters ? 'remove bulk, keep active-site' : 'remove') : 'keep all'"></span></div>
+                        <div><strong>Metals:</strong> <span x-text="keepMetals ? 'keep' : 'remove if preparation backend removes hetero atoms'"></span></div>
+                        <div><strong>Cofactors:</strong> <span x-text="keepCofactors ? 'keep' : 'remove if preparation backend removes hetero atoms'"></span></div>
+                    </div>
+
+                    <button type="button"
+                            @click="prepareProtein"
+                            class="w-full rounded-md bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            :disabled="loading || !proteinAnalysis">
+                        <span x-show="!loading">Generate Receptor</span>
+                        <span x-show="loading">Generating receptor...</span>
+                    </button>
+                    <div x-show="proteinError" x-cloak class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" x-text="proteinError"></div>
+                    <div class="rounded-md border border-slate-200 bg-slate-950 p-4 font-mono text-xs text-emerald-300">
+                        <div class="whitespace-pre-line" x-text="log1"></div>
+                    </div>
+                </section>
+
+                <!-- STEP 7 -->
+                <section x-show="step === 7" class="space-y-6" x-cloak>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-blue-700">Step 7</p>
+                        <h2 class="mt-1 text-2xl font-bold text-slate-900">Docking</h2>
+                        <p class="mt-2 text-sm text-slate-500">Prepare a ligand, confirm the grid box, and launch AutoDock Vina.</p>
+                    </div>
+
+                    <div class="grid gap-4 xl:grid-cols-2">
+                        <form @submit.prevent="prepareLigand" class="rounded-md border border-slate-200 bg-white p-4">
+                            <h3 class="font-semibold text-slate-900">Ligand</h3>
+                            <input type="text"
+                                   x-model="ligandSmiles"
+                                   placeholder="SMILES, e.g. CC(=O)Oc1ccccc1C(=O)O"
+                                   class="mt-3 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                                   required>
+                            <button type="submit" class="mt-3 w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" :disabled="loading">
+                                <span x-show="!loading">Prepare Ligand</span>
+                                <span x-show="loading">Preparing...</span>
+                            </button>
+                            <div x-show="ligandError" x-cloak class="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700" x-text="ligandError"></div>
+                            <pre class="mt-3 max-h-32 overflow-auto rounded bg-slate-950 p-3 text-xs text-emerald-300" x-text="log2"></pre>
+                        </form>
+
+                        <form @submit.prevent="saveGridbox" class="rounded-md border border-slate-200 bg-white p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <h3 class="font-semibold text-slate-900">Grid Box</h3>
+                                <button type="button" @click="autoGrid" class="rounded border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" :disabled="loading || !proteinPdbqt">Auto Detect</button>
+                            </div>
+                            <div class="mt-3 grid grid-cols-3 gap-2">
+                                <label class="text-xs text-slate-500">Center X<input type="number" step="0.1" x-model="grid.center_x" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                                <label class="text-xs text-slate-500">Center Y<input type="number" step="0.1" x-model="grid.center_y" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                                <label class="text-xs text-slate-500">Center Z<input type="number" step="0.1" x-model="grid.center_z" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                                <label class="text-xs text-slate-500">Size X<input type="number" step="1" x-model="grid.size_x" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                                <label class="text-xs text-slate-500">Size Y<input type="number" step="1" x-model="grid.size_y" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                                <label class="text-xs text-slate-500">Size Z<input type="number" step="1" x-model="grid.size_z" @input="scheduleGridBoxUpdate" class="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm" required></label>
+                            </div>
+                            <button type="submit" class="mt-3 w-full rounded-md border border-blue-300 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">Confirm Grid Box</button>
+                            <div x-show="gridError" x-cloak class="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700" x-text="gridError"></div>
+                            <div x-show="gridBoxWarning" x-cloak class="mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800" x-text="gridBoxWarning"></div>
+                            <pre class="mt-3 rounded bg-slate-50 p-3 text-xs text-slate-700" x-text="gridSummary"></pre>
+                        </form>
+                    </div>
+
+                    <div class="rounded-md border border-slate-200 bg-white p-4">
+                        <div class="grid gap-3 sm:grid-cols-2">
+                            <label class="text-sm text-slate-600">Exhaustiveness<input type="number" x-model="exhaustiveness" class="mt-1 w-full rounded border border-slate-300 px-3 py-2"></label>
+                            <label class="text-sm text-slate-600">Poses<input type="number" x-model="numModes" class="mt-1 w-full rounded border border-slate-300 px-3 py-2"></label>
+                            <label class="text-sm text-slate-600">Scoring Function
+                                <select x-model="scoringFunction" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                                    <option value="vina">vina (default)</option>
+                                    <option value="vinardo">vinardo</option>
+                                    <option value="ad4">ad4</option>
+                                </select>
+                            </label>
+                            <label class="text-sm text-slate-600">Random Seed <span class="text-xs text-slate-400">(optional, for reproducibility)</span>
+                                <input type="number" x-model="vinaSeed" placeholder="random" class="mt-1 w-full rounded border border-slate-300 px-3 py-2">
+                            </label>
+                        </div>
+                        <button type="button"
+                                @click="console.log('LAUNCH BUTTON CLICK EVENT FIRED (means not disabled by browser)'); runDocking()"
+                                class="mt-4 w-full rounded-md bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="loading || !canRun">
+                            <span x-show="!dockingLoading">Launch AutoDock Vina</span>
+                            <span x-show="dockingLoading">Docking in progress...</span>
+                        </button>
+                        <div x-show="!canRun" class="mt-3 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                            Receptor, ligand, and a positive grid box are required before launch.
+                        </div>
+                        <div x-show="runError" x-cloak class="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700" x-text="runError"></div>
+                        <pre class="mt-3 min-h-20 whitespace-pre-line rounded bg-slate-950 p-3 text-xs text-slate-200" x-text="runLog"></pre>
+                    </div>
+
+                    <div x-show="report" x-cloak class="rounded-md border border-emerald-200 bg-emerald-50 p-5">
+                        <h3 class="text-xl font-bold text-emerald-900">Docking Completed</h3>
+                        <p class="mt-2 text-sm text-emerald-800">Best affinity: <strong x-text="report?.best_affinity ? `${report.best_affinity} kcal/mol` : 'N/A'"></strong></p>
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="border-b border-emerald-200 text-left text-emerald-900">
+                                    <tr><th class="py-2 pr-4">Rank</th><th class="py-2 pr-4">Affinity</th><th class="py-2 pr-4">RMSD LB</th><th class="py-2 pr-4">RMSD UB</th></tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="pose in report?.poses || []" :key="pose.rank">
+                                        <tr class="border-b border-emerald-100">
+                                            <td class="py-2 pr-4" x-text="pose.rank"></td>
+                                            <td class="py-2 pr-4" x-text="`${pose.affinity} kcal/mol`"></td>
+                                            <td class="py-2 pr-4" x-text="pose.rmsd_lb"></td>
+                                            <td class="py-2 pr-4" x-text="pose.rmsd_ub"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            <a :href="jobId ? `/pose-analysis?job_id=${jobId}` : '/pose-analysis'"
+                               class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+                               :class="{ 'pointer-events-none opacity-50': !jobId }">Proceed to Pose Analysis</a>
+                            <button type="button"
+                                    x-show="jobId"
+                                    @click="openDockingInChimeraX"
+                                    class="rounded-md border border-orange-300 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50">
+                                Open in ChimeraX
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <aside class="molstar-preview-shell bg-slate-50 p-4">
+                <div class="sticky top-24 space-y-4">
+                    <div class="rounded-lg border border-slate-200 bg-white p-3">
+                        <div class="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                                <h2 class="font-semibold text-slate-900">Live Structure Preview</h2>
+                                <p class="text-xs text-slate-500">Mol* Viewer</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button"
+                                        x-show="proteinAnalysis && !molstarLoading"
+                                        @click="openReceptorInChimeraX"
+                                        class="rounded-md border border-orange-300 bg-white px-2 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-50">
+                                    Open in ChimeraX
+                                </button>
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600" x-text="molstarLoading ? 'Loading' : 'Ready'"></span>
+                            </div>
+                        </div>
+                        <div class="relative molstar-preview-host rounded-md border border-slate-200 h-96">
+                            <!-- Overlays are siblings to the Molstar target -->
+                            <div x-show="!proteinAnalysis && !molstarLoading" class="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-slate-500 bg-slate-50">
+                                Mol* will render the receptor after protein analysis.
+                            </div>
+                            <div x-show="molstarLoading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+                                <div class="flex flex-col items-center gap-3">
+                                    <div class="h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent"></div>
+                                    <p class="text-sm font-medium text-emerald-800">Updating rendering...</p>
+                                </div>
+                            </div>
+                            <div x-show="molstarStatus" x-cloak class="absolute inset-x-4 top-4 z-20 rounded-md bg-white/90 p-3 text-center text-xs text-slate-600 shadow" x-text="molstarStatus"></div>
+                            <div x-show="molstarError" x-cloak class="absolute inset-x-4 top-4 z-20 rounded-md border border-red-200 bg-red-50 p-3 text-center text-xs text-red-700 shadow" x-text="molstarError"></div>
+                            
+                            <!-- The actual target for Mol* -->
+                            <div id="protein-preview-viewer" class="w-full h-full border border-gray-600 rounded bg-black" style="min-height: 400px;" :class="{'opacity-0': !molstarViewer}"></div>
+                            <!-- Grid/pocket overlays now inside relative host so absolute positioning works over 3D view -->
+                            <!-- CSS fallback only if no 3D Mol* yet; real 3D box rendered inside Mol* via generate+load -->
+                            <div x-show="showGridBox && proteinAnalysis && !molstarViewer" x-cloak class="gridbox-overlay"></div>
+                            <div x-show="showPockets && selectedPocket" x-cloak class="pocket-overlay"></div>
+                        </div>
+                        <div x-show="showMissingResidues && (proteinAnalysis?.missing_residues || []).length" x-cloak class="absolute bottom-4 left-4 right-4 z-20 rounded-md border border-amber-200 bg-amber-50/95 p-3 text-xs text-amber-900 shadow">
+                            Missing residues:
+                            <span x-text="(proteinAnalysis?.missing_residues || []).slice(0, 4).map(m => `${m.resname || ''}${m.resnum || ''} ${m.chain_id || ''}`).join(', ')"></span>
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-white p-3">
+                        <h3 class="text-sm font-semibold text-slate-900">Live Controls</h3>
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showWaters" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Waters</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showActiveSiteWaters" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Active-Site Waters</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showBulkWaters" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Bulk Waters</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showMetals" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Metals</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showCofactors" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Cofactors</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showLigands" @change="togglePreviewSetting" class="rounded text-blue-600"> Show Ligands</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showPockets" @change="togglePocketVisibility" class="rounded text-blue-600"> Show Pockets</label>
+                            <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showGridBox" class="rounded text-blue-600"> Show Grid Box</label>
+                            <label class="col-span-2 flex items-center gap-2 rounded border border-slate-200 px-2 py-2"><input type="checkbox" x-model="showMissingResidues" class="rounded text-blue-600"> Show Missing Residues</label>
+                        </div>
+                        <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <template x-for="chain in availableChains" :key="`visible-${chain.chain_id}`">
+                                <label class="flex items-center gap-2 rounded border border-slate-200 px-2 py-2">
+                                    <input type="checkbox"
+                                           :checked="visibleChains.includes(chain.chain_id)"
+                                           @change="toggleVisibleChain(chain.chain_id)"
+                                           class="rounded text-blue-600">
+                                    <span x-text="`Show Chain ${chain.chain_id || '_'}`"></span>
+                                </label>
+                            </template>
+                            <div x-show="!availableChains.length" class="col-span-2 text-xs text-slate-500">Show Chain A, Show Chain B, and Show Chain C controls appear after analysis when those chains exist.</div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+                        <div><strong>Selected pocket:</strong> <span x-text="selectedPocket?.title || 'none'"></span></div>
+                        <div><strong>Grid:</strong> <span x-text="`${grid.center_x}, ${grid.center_y}, ${grid.center_z} / ${grid.size_x} x ${grid.size_y} x ${grid.size_z}`"></span></div>
+                        <div><strong>Visible chains:</strong> <span x-text="visibleChains.join(', ') || 'none'"></span></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- AI Assistant Floating UI -->
+        <div class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+            <!-- Slide-over Panel -->
+            <div x-show="assistantOpen" 
+                 x-transition:enter="transition ease-out duration-300 transform"
+                 x-transition:enter-start="translate-y-full opacity-0"
+                 x-transition:enter-end="translate-y-0 opacity-100"
+                 x-transition:leave="transition ease-in duration-200 transform"
+                 x-transition:leave-start="translate-y-0 opacity-100"
+                 x-transition:leave-end="translate-y-full opacity-0"
+                 @click.away="assistantOpen = false"
+                 class="mb-4 w-96 rounded-xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col"
+                 style="max-height: 500px;">
+                
+                <!-- Header -->
+                <div class="bg-indigo-600 px-4 py-3 text-white flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <svg class="h-5 w-5 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <h3 class="font-semibold">AI Assistant</h3>
+                    </div>
+                    <button @click="assistantOpen = false" class="text-indigo-200 hover:text-white">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Content Area -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-4 text-sm bg-slate-50/50">
+                    <div x-show="assistantResponse" class="prose prose-sm prose-indigo max-w-none text-slate-700 bg-white p-3 rounded-lg border border-slate-100 shadow-sm" x-html="assistantResponse"></div>
+                    
+                    <div x-show="assistantError" class="rounded-md bg-red-50 p-3 text-red-700 border border-red-100" x-text="assistantError"></div>
+                    
+                    <div x-show="!assistantResponse && !assistantLoading && !assistantError" class="text-center text-slate-500 py-6">
+                        <p>Ask a question about your docking workflow, receptor preparation, or pose analysis.</p>
+                    </div>
+
+                    <div x-show="assistantLoading" class="flex flex-col items-center justify-center py-6 gap-3">
+                        <div class="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+                        <p class="text-xs font-medium text-indigo-600">AI is thinking...</p>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="border-t border-slate-200 bg-white p-3">
+                    <select x-model="assistantDomain" class="mb-2 w-full rounded-md border-slate-300 text-xs text-slate-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="receptor_prep">Receptor Prep</option>
+                        <option value="ligand_prep">Ligand Prep</option>
+                        <option value="docking">Docking</option>
+                        <option value="pose_analysis">Pose Analysis</option>
+                    </select>
+                    <div class="flex gap-2">
+                        <textarea x-model="assistantQuestion" 
+                                  @keydown.enter.prevent="requestAiAssistant(assistantQuestion, assistantDomain)"
+                                  rows="2"
+                                  placeholder="Type your question..."
+                                  class="w-full resize-none rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+                        <button @click="requestAiAssistant(assistantQuestion, assistantDomain)"
+                                :disabled="assistantLoading || !assistantQuestion.trim()"
+                                class="rounded-md bg-indigo-600 p-2 text-white hover:bg-indigo-700 disabled:opacity-50 h-fit self-end">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
-            
-        </div>
-    </div>
-</div>
 
+            <!-- Floating Button -->
+            <button @click="assistantOpen = !assistantOpen" 
+                    class="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition-transform hover:scale-105 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                <svg x-show="!assistantOpen" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <svg x-show="assistantOpen" x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
 document.addEventListener('alpine:init', () => {
+    // The Mol* Viewer instance is a complex stateful object (RxJS observables, canvas/WebGL
+    // context, internal state machines). Alpine wraps every x-data property in a reactive
+    // Proxy, and proxying this object breaks Mol*'s internal `this`-bound async behavior,
+    // causing loadStructureFromData to hang indefinitely. So the real viewer lives here,
+    // outside Alpine's reactivity, and `molstarViewer` on the component is just a boolean
+    // flag for template bindings (:class="{'opacity-0': !molstarViewer}", etc).
+    let rawMolstarViewer = null;
+
     Alpine.data('dockingWorkspace', () => ({
+        wizardSteps: [
+            { id: 1, label: 'Upload Protein' },
+            { id: 2, label: 'Protein Analysis' },
+            { id: 3, label: 'Chain Selection' },
+            { id: 4, label: 'Pocket Selection' },
+            { id: 5, label: 'Preparation Options' },
+            { id: 6, label: 'Generate Receptor' },
+            { id: 7, label: 'Docking' },
+        ],
         step: 1,
         loading: false,
+        dockingLoading: false,
         statusMessage: '',
         errorMessage: '',
-        
+
+        proteinFileName: '',
         proteinPdbqt: '',
+        // PAMS: fetch-by-ID + protein asset reference
+        pdbIdInput: '',
+        fetchSource: '',            // '' = auto-detect
+        availableSources: [],
+        fetchingStructure: false,
+        fetchError: '',
+        currentAssetId: '',
+        structureMeta: null,
         removeWater: true,
+        keepActiveSiteWaters: false,
         addCharges: true,
+        keepCofactors: false,
+        keepMetals: true,
         log1: 'Waiting for PDB upload...',
         proteinError: '',
-        
+
+        originalPdbText: '',
+        proteinAnalysis: null,
+        selectedChains: [],
+        visibleChains: [],
+        analysisError: '',
+        analysisLoading: false,
+
+        showWaters: true,
+        showActiveSiteWaters: true,
+        showBulkWaters: true,
+        showMetals: true,
+        showCofactors: true,
+        showLigands: true,
+        showPockets: true,
+        showGridBox: false,
+        showMissingResidues: true,
+
+        molstarViewer: null,
+        molstarLoading: false,
+        molstarStatus: '',
+        molstarError: '',
+        molstarRenderToken: 0,
+
+        aiRecommendation: null,
+        aiLoading: false,
+        chosenChainSource: '',
+
+        assistantOpen: false,
+        assistantQuestion: '',
+        assistantResponse: '',
+        assistantProvider: '',
+        assistantLoading: false,
+        assistantError: '',
+        assistantDomain: 'general',
+
+        ligandSites: [],
+        predictedPockets: [],
+        selectedPocket: null,
+        waterAnalysis: { waters: [], summary: {}, total: 0 },
+
         ligandSmiles: '',
         ligandPdbqt: '',
         log2: 'Waiting for SMILES...',
         ligandError: '',
-        
+
         grid: { center_x: 0, center_y: 0, center_z: 0, size_x: 20, size_y: 20, size_z: 20 },
         gridError: '',
-        
+        gridBoxWarning: '',
+        gridConfirmed: false,
+
         exhaustiveness: 8,
+        scoringFunction: 'vina',
+        vinaSeed: '',
         numModes: 9,
         report: null,
         runError: '',
         runLog: 'Ready to launch once all inputs are prepared.',
         jobId: '',
 
+        metalResidues: new Set(['NA', 'MG', 'CA', 'ZN', 'FE', 'MN', 'CU', 'CO', 'NI', 'K', 'CD', 'AU', 'PT', 'LI', 'HG', 'RB', 'SR', 'MO', 'W', 'SE']),
+        waterResidues: new Set(['HOH', 'WAT', 'H2O', 'WTR']),
+        cofactorResidues: new Set(['ATP', 'ADP', 'AMP', 'GTP', 'GDP', 'GMP', 'CTP', 'CDP', 'UTP', 'UDP', 'NAD', 'NADH', 'NDP', 'NAP', 'FAD', 'FMN', 'HEM', 'HME', 'HEC', 'HEB', 'SAM', 'SAH', 'COA', 'ACC', 'PLP', 'B12']),
+
+        init() {
+            // Populate the source dropdown from PAMS (no hardcoded provider list).
+            this.loadStructureSources();
+        },
+
+        get availableChains() {
+            return (this.proteinAnalysis && this.proteinAnalysis.chains) ? this.proteinAnalysis.chains : [];
+        },
+
         get canRun() {
             return Boolean(
                 this.proteinPdbqt &&
                 this.ligandPdbqt &&
+                this.gridConfirmed &&
                 this.validNumber(this.grid.center_x) &&
                 this.validNumber(this.grid.center_y) &&
                 this.validNumber(this.grid.center_z) &&
@@ -230,6 +882,117 @@ document.addEventListener('alpine:init', () => {
                 `Size Y:   ${this.grid.size_y}`,
                 `Size Z:   ${this.grid.size_z}`,
             ].join('\n');
+        },
+
+        get waterSummaryText() {
+            const summary = this.waterAnalysis?.summary || {};
+            const total = summary.total_waters ?? this.waterAnalysis?.total ?? 0;
+            const active = summary.active_site_waters ?? 0;
+            const bulk = summary.bulk_waters ?? 0;
+            return `${total} total waters, ${active} active-site, ${bulk} bulk.`;
+        },
+
+        get topWaterCards() {
+            return (this.waterAnalysis?.waters || []).slice(0, 5);
+        },
+
+        get pocketCards() {
+            const ligandCards = (this.ligandSites || []).map((site, index) => ({
+                ...site,
+                key: `ligand-${site.ligand_resname}-${site.ligand_chain}-${site.ligand_resnum}-${index}`,
+                title: `${site.ligand_resname} site, chain ${site.ligand_chain}`,
+                typeLabel: 'Ligand-defined pocket',
+                center: site.centroid,
+                confidence: site.confidence || 'high',
+            }));
+            const predictedCards = (this.predictedPockets || []).map((pocket, index) => ({
+                ...pocket,
+                key: `predicted-${pocket.pocket_id || index}`,
+                title: pocket.label || `Pocket ${pocket.pocket_id || index + 1}`,
+                typeLabel: 'Predicted pocket',
+                confidence: pocket.score ? `score ${pocket.score}` : 'medium',
+                scoreLabel: pocket.score ? `score ${pocket.score}` : 'medium',
+            }));
+            return [...ligandCards, ...predictedCards];
+        },
+
+        canVisitStep(id) {
+            if (id === 1) return true;
+            if (id >= 2 && id <= 6) return Boolean(this.proteinAnalysis);
+            if (id === 7) return Boolean(this.proteinPdbqt || this.proteinAnalysis);
+            return false;
+        },
+
+        goToStep(id) {
+            if (!this.canVisitStep(id)) return;
+            this.step = id;
+            if (this.proteinAnalysis) this.$nextTick(() => {
+                // TEMP ISOLATION TEST bypass late step nav render
+                // this.renderProteinPreview({ keepCamera: true });
+            });
+        },
+
+        clearMessages() {
+            this.statusMessage = '';
+            this.errorMessage = '';
+        },
+
+        handleProteinFileSelected() {
+            const file = this.$refs.proteinFile?.files?.[0];
+            this.proteinFileName = file ? file.name : '';
+            this.originalPdbText = '';
+            this.proteinAnalysis = null;
+            this.proteinPdbqt = '';
+            this.ligandSites = [];
+            this.predictedPockets = [];
+            this.selectedPocket = null;
+            this.waterAnalysis = { waters: [], summary: {}, total: 0 };
+            this.selectedChains = [];
+            this.visibleChains = [];
+            this.report = null;
+            this.jobId = '';
+            this.log1 = file ? `Loaded ${file.name}. Ready to analyze.` : 'Waiting for PDB upload...';
+            this.molstarStatus = '';
+            this.molstarError = '';
+            this.assistantOpen = false;
+            this.assistantQuestion = '';
+            this.assistantResponse = '';
+            this.assistantError = '';
+            this.assistantLoading = false;
+            this.dockingLoading = false;
+            this.gridConfirmed = false;
+        },
+
+        resetWorkspace() {
+            this.step = 1;
+            this.loading = false;
+            this.statusMessage = '';
+            this.errorMessage = '';
+            this.proteinFileName = '';
+            this.originalPdbText = '';
+            this.proteinAnalysis = null;
+            this.proteinPdbqt = '';
+            this.ligandPdbqt = '';
+            this.ligandSmiles = '';
+            this.ligandSites = [];
+            this.predictedPockets = [];
+            this.selectedPocket = null;
+            this.waterAnalysis = { waters: [], summary: {}, total: 0 };
+            this.selectedChains = [];
+            this.visibleChains = [];
+            this.report = null;
+            this.jobId = '';
+            this.log1 = 'Waiting for PDB upload...';
+            this.log2 = 'Waiting for SMILES...';
+            if (this.$refs.proteinFile) this.$refs.proteinFile.value = '';
+            this.clearMolstarScene();
+            this.assistantOpen = false;
+            this.assistantQuestion = '';
+            this.assistantResponse = '';
+            this.assistantError = '';
+            this.assistantLoading = false;
+            this.dockingLoading = false;
+            this.gridConfirmed = false;
         },
 
         validNumber(value) {
@@ -255,33 +1018,752 @@ document.addEventListener('alpine:init', () => {
             return `${fallback} (HTTP ${response.status})`;
         },
 
-        clearMessages() {
-            this.statusMessage = '';
-            this.errorMessage = '';
+        async inspectProtein() {
+            const file = this.$refs.proteinFile?.files?.[0];
+            if (!file) {
+                this.analysisError = 'Please select a PDB file first.';
+                return;
+            }
+            const text = await file.text();
+            this.resetForNewStructure();
+            this.proteinFileName = file.name;
+
+            // Route uploads through PAMS so uploaded and fetched proteins are both
+            // ProteinAssets sharing one workflow. Fall back to using the raw text
+            // directly if PAMS is unavailable, so upload never regresses.
+            try {
+                const res = await fetch('/api/proteins/upload', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdb_text: text, name: file.name })
+                });
+                if (res.ok) {
+                    const asset = (await res.json()).asset;
+                    const sRes = await fetch(`/api/proteins/${asset.asset_id}/structure`);
+                    if (sRes.ok) {
+                        this.originalPdbText = (await sRes.json()).pdb_text;
+                        this.currentAssetId = asset.asset_id;
+                        this.structureMeta = asset.metadata || null;
+                    }
+                }
+            } catch (e) { /* fall through to direct text */ }
+
+            if (!this.originalPdbText) {
+                this.originalPdbText = text;   // backward-compatible fallback
+            }
+            await this.analyzeCurrentStructure();
         },
-        
+
+        // Fetch a structure by ID from PAMS (RCSB today; source-agnostic) and run the
+        // SAME downstream analysis path uploaded files use. The viewer/docking then
+        // consume the fetched structure by asset reference.
+        async fetchProteinById() {
+            const id = (this.pdbIdInput || '').trim();
+            if (!id) { this.fetchError = 'Enter a structure ID (e.g. 4DUH).'; return; }
+            this.fetchingStructure = true;
+            this.fetchError = '';
+            try {
+                const res = await fetch('/api/proteins/fetch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ identifier: id, source: this.fetchSource || null })
+                });
+                if (!res.ok) throw new Error(await this.apiError(res, 'Structure fetch failed'));
+                const asset = (await res.json()).asset;
+                const sRes = await fetch(`/api/proteins/${asset.asset_id}/structure`);
+                if (!sRes.ok) throw new Error(await this.apiError(sRes, 'Could not load fetched structure'));
+                const structureText = (await sRes.json()).pdb_text;
+
+                this.resetForNewStructure();
+                this.originalPdbText = structureText;
+                this.proteinFileName = asset.name || id;
+                this.currentAssetId = asset.asset_id;
+                this.structureMeta = asset.metadata || null;
+                await this.analyzeCurrentStructure();
+            } catch (e) {
+                this.fetchError = e.message;
+            } finally {
+                this.fetchingStructure = false;
+            }
+        },
+
+        async loadStructureSources() {
+            try {
+                const res = await fetch('/api/proteins/sources');
+                if (res.ok) this.availableSources = (await res.json()).sources || [];
+            } catch (e) { /* non-fatal: fetch box still works with auto-detect */ }
+        },
+
+        resetForNewStructure() {
+            this.proteinPdbqt = '';
+            this.currentAssetId = '';
+            this.structureMeta = null;
+            this.gridConfirmed = false;
+            this.report = null;
+            this.jobId = '';
+        },
+
+        // Shared analysis workflow — identical for uploaded and fetched structures.
+        async analyzeCurrentStructure() {
+            this.analysisLoading = true;
+            this.analysisError = '';
+            this.proteinError = '';
+            this.clearMessages();
+            this.log1 = 'Analyzing protein structure...';
+
+            try {
+                const text = this.originalPdbText;
+
+                let res = await fetch('/api/docking/receptor/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdb_text: text, asset_id: this.currentAssetId || null })
+                });
+
+                if (!res.ok) {
+                    res = await fetch('/api/docking/protein_analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ pdb_text: text })
+                    });
+                }
+
+                if (!res.ok) throw new Error(await this.apiError(res, 'Protein analysis failed'));
+
+                const data = await res.json();
+                this.proteinAnalysis = data;
+                const rec = data.recommendation || {};
+                this.selectedChains = (rec.recommended_chain_ids && rec.recommended_chain_ids.length)
+                    ? [...rec.recommended_chain_ids]
+                    : (data.chains || []).map(c => c.chain_id);
+                this.visibleChains = (data.chains || []).map(c => c.chain_id);
+                this.chosenChainSource = 'heuristic';
+
+                await Promise.allSettled([
+                    this.fetchBindingSites(text),
+                    this.fetchWaterClassification(text),
+                ]);
+
+                const firstPocket = this.pocketCards[0];
+                if (firstPocket) {
+                    this.selectPocket(firstPocket, { silent: true });
+                }
+
+                const summary = `${data.total_chains} chain(s), ${data.total_residues} residues, ${data.total_hetero_groups || 0} hetero groups`;
+                this.log1 = `Analysis complete. ${summary}\nRecommended chains: ${(rec.recommended_chain_ids || []).join(', ') || 'none'}`;
+                this.statusMessage = 'Protein analysis complete. Mol* preview and live controls are active.';
+                this.step = 2;
+                await this.$nextTick();
+                await this.renderProteinPreview({ keepCamera: false });
+
+                if ((data.chains || []).length > 1 && !this.aiRecommendation) {
+                    this.requestAiChainRecommendation().catch(() => {});
+                }
+            } catch (e) {
+                this.analysisError = e.message;
+                this.errorMessage = `Protein analysis failed: ${e.message}`;
+                this.log1 = `Analysis error: ${e.message}`;
+            } finally {
+                this.analysisLoading = false;
+            }
+        },
+
+        async fetchBindingSites(text) {
+            this.ligandSites = [];
+            this.predictedPockets = [];
+
+            const sitesRes = await fetch('/api/docking/receptor/ligand_sites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdb_text: text })
+            });
+            if (sitesRes.ok) {
+                const sitesData = await sitesRes.json();
+                this.ligandSites = sitesData.sites || [];
+            }
+
+            const pocketsRes = await fetch('/api/docking/receptor/pockets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdb_text: text })
+            });
+            if (pocketsRes.ok) {
+                const pocketsData = await pocketsRes.json();
+                this.predictedPockets = pocketsData.suggestions || [];
+            }
+        },
+
+        async fetchWaterClassification(text) {
+            const res = await fetch('/api/docking/receptor/waters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pdb_text: text })
+            });
+            if (res.ok) {
+                this.waterAnalysis = await res.json();
+            }
+        },
+
+        toggleChain(chainId) {
+            if (this.selectedChains.includes(chainId)) {
+                this.selectedChains = this.selectedChains.filter(c => c !== chainId);
+            } else {
+                this.selectedChains.push(chainId);
+            }
+        },
+
+        toggleVisibleChain(chainId) {
+            if (this.visibleChains.includes(chainId)) {
+                this.visibleChains = this.visibleChains.filter(c => c !== chainId);
+            } else {
+                this.visibleChains.push(chainId);
+            }
+            // TEMP ISOLATION TEST: bypass (chain toggles normally pre-ligand, but safe)
+            // this.renderProteinPreview({ keepCamera: true });
+        },
+
+        selectAllChains() {
+            this.selectedChains = this.availableChains.map(c => c.chain_id);
+        },
+
+        selectRecommendedChains() {
+            const rec = this.proteinAnalysis?.recommendation || {};
+            this.selectedChains = rec.recommended_chain_ids ? [...rec.recommended_chain_ids] : [];
+            this.chosenChainSource = 'heuristic';
+        },
+
+        async requestAiChainRecommendation() {
+            if (!this.proteinAnalysis || !this.originalPdbText) return;
+            this.aiLoading = true;
+            this.analysisError = '';
+            try {
+                const res = await fetch('/api/docking/ai_chain_recommendation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        analysis: this.proteinAnalysis,
+                        ligand_smiles: this.ligandSmiles || null,
+                        target_name: null
+                    })
+                });
+                if (!res.ok) throw new Error(await this.apiError(res, 'AI recommendation request failed'));
+                this.aiRecommendation = await res.json();
+            } catch (e) {
+                this.analysisError = `AI expert recommendation failed: ${e.message}`;
+            } finally {
+                this.aiLoading = false;
+            }
+        },
+
+        applyAiRecommendation() {
+            if (!this.aiRecommendation?.recommended_chain_ids) return;
+            this.selectedChains = [...this.aiRecommendation.recommended_chain_ids];
+            this.chosenChainSource = 'ai_expert';
+            this.statusMessage = 'Applied AI expert chain recommendation.';
+        },
+
+        async requestAiAssistant(question = null, domain = null) {
+            if (!this.proteinAnalysis || !this.originalPdbText) {
+                this.assistantError = 'Load a protein and run analysis before asking the expert.';
+                return;
+            }
+            this.assistantError = '';
+            this.assistantResponse = '';
+            this.assistantLoading = true;
+            if (question) {
+                this.assistantQuestion = question;
+            }
+            if (domain) {
+                this.assistantDomain = domain;
+            }
+
+            const payload = {
+                question: this.assistantQuestion?.trim() || 'Explain the current protein preparation recommendations for this target.',
+                pdb_text: this.originalPdbText,
+                analysis: this.proteinAnalysis,
+                domain: this.assistantDomain,
+            };
+
+            try {
+                const res = await fetch('/api/docking/ai_expert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error(await this.apiError(res, 'AI assistant request failed'));
+                const data = await res.json();
+                this.assistantResponse = data.reasoning || data.recommendation?.answer || (typeof data.recommendation === 'string' ? data.recommendation : JSON.stringify(data.recommendation, null, 2)) || 'No response was returned by the AI expert.';
+                this.assistantProvider = data.provider_used || data.metadata?.provider_used || data.metadata?.provider || 'auto';
+            } catch (e) {
+                this.assistantError = `AI expert query failed: ${e.message}`;
+            } finally {
+                this.assistantLoading = false;
+            }
+        },
+
+        selectPocket(pocket, options = {}) {
+            if (!pocket) return;
+            this.selectedPocket = pocket;
+            if (pocket.suggested_grid) {
+                this.applyGrid(pocket.suggested_grid);
+            }
+            this.showPockets = true;
+            this.showGridBox = true;
+            this.gridConfirmed = true;
+            this.highlightSelectedPocket();
+            if (this.originalPdbText && this.molstarViewer) {
+                this.renderProteinPreview({ keepCamera: true }).catch(() => {});
+            }
+            if (!options.silent) {
+                this.statusMessage = `Pocket selected: ${pocket.title}`;
+            }
+        },
+
+        applyGrid(g) {
+            this.grid.center_x = g.center_x;
+            this.grid.center_y = g.center_y;
+            this.grid.center_z = g.center_z;
+            this.grid.size_x = Number(g.size_x).toFixed ? Number(g.size_x).toFixed(1) : g.size_x;
+            this.grid.size_y = Number(g.size_y).toFixed ? Number(g.size_y).toFixed(1) : g.size_y;
+            this.grid.size_z = Number(g.size_z).toFixed ? Number(g.size_z).toFixed(1) : g.size_z;
+            // A focused pocket/ligand-site box supersedes the blind-docking warning.
+            this.gridBoxWarning = '';
+        },
+
+        // Generate a minimal PDB for a wireframe 3D grid box (8 corners + CONECT edges)
+        // Loaded as extra structure in Mol* so it renders as visible 3D box using existing load path.
+        generateGridBoxPdb() {
+            const g = this.grid || {};
+            const cx = parseFloat(g.center_x) || 0;
+            const cy = parseFloat(g.center_y) || 0;
+            const cz = parseFloat(g.center_z) || 0;
+            const sx = (parseFloat(g.size_x) || 0) / 2;
+            const sy = (parseFloat(g.size_y) || 0) / 2;
+            const sz = (parseFloat(g.size_z) || 0) / 2;
+            if (sx <= 0 || sy <= 0 || sz <= 0) return '';
+            const pts = [
+                [cx-sx, cy-sy, cz-sz], [cx+sx, cy-sy, cz-sz], [cx+sx, cy+sy, cz-sz], [cx-sx, cy+sy, cz-sz],
+                [cx-sx, cy-sy, cz+sz], [cx+sx, cy-sy, cz+sz], [cx+sx, cy+sy, cz+sz], [cx-sx, cy+sy, cz+sz]
+            ];
+            let pdb = 'HEADER    DOCKING GRID BOX\n';
+            pts.forEach((p, i) => {
+                const x = p[0].toFixed(3).padStart(8), y = p[1].toFixed(3).padStart(8), z = p[2].toFixed(3).padStart(8);
+                pdb += `HETATM${String(i+1).padStart(5)}  X   BOX A   1    ${x}${y}${z}  1.00  0.00           X \n`;
+            });
+            const bonds = [[1,2],[2,3],[3,4],[4,1],[5,6],[6,7],[7,8],[8,5],[1,5],[2,6],[3,7],[4,8]];
+            bonds.forEach(([a,b]) => { pdb += `CONECT${String(a).padStart(5)}${String(b).padStart(5)}\n`; });
+            pdb += 'END\n';
+            return pdb;
+        },
+
+        togglePocketVisibility() {
+            if (this.showPockets) {
+                this.highlightSelectedPocket();
+            } else {
+                this.clearMolstarHighlight();
+            }
+        },
+
+        get hasChainSelection() {
+            return this.selectedChains && this.selectedChains.length > 0;
+        },
+
+        getFilteredPdbText() {
+            if (!this.originalPdbText || !this.hasChainSelection) return this.originalPdbText;
+            const keep = new Set(this.selectedChains);
+            return this.originalPdbText.split('\n').filter(line => {
+                if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+                    const cid = this.chainIdFromLine(line);
+                    return keep.has(cid);
+                }
+                return true;
+            }).join('\n');
+        },
+
+        getFilteredPreviewPdbText() {
+            if (!this.originalPdbText) return '';
+            const waterCategories = this.waterCategoryMap();
+            const visible = new Set(this.visibleChains);
+            const cofactorKeys = new Set((this.proteinAnalysis?.cofactors || []).map(c => `${c.chain_id}:${c.resnum}:${String(c.resname || '').toUpperCase()}`));
+
+            return this.originalPdbText.split('\n').filter(line => {
+                if (!line.startsWith('ATOM') && !line.startsWith('HETATM')) return true;
+
+                const chainId = this.chainIdFromLine(line);
+                if (visible.size && !visible.has(chainId)) return false;
+
+                const resn = this.resnameFromLine(line);
+                const resnum = this.resnumFromLine(line);
+                const isWater = this.waterResidues.has(resn);
+                const isMetal = this.metalResidues.has(resn);
+                const isHet = line.startsWith('HETATM');
+                const cofactorKey = `${chainId}:${resnum}:${resn}`;
+                const isCofactor = cofactorKeys.has(cofactorKey) || this.cofactorResidues.has(resn);
+
+                if (isWater) {
+                    if (!this.showWaters) return false;
+                    const category = waterCategories.get(`${chainId}:${resnum}`);
+                    if (category === 'active_site' && !this.showActiveSiteWaters) return false;
+                    if ((category === 'bulk' || category === 'conserved') && !this.showBulkWaters) return false;
+                    return true;
+                }
+
+                if (isMetal) return this.showMetals;
+                if (isHet && isCofactor) return this.showCofactors;
+                if (isHet) return this.showLigands;
+                return true;
+            }).map(line => {
+                if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+                    return line.substring(0, 80);
+                }
+                return line;
+            }).join('\n');
+        },
+
+        waterCategoryMap() {
+            const map = new Map();
+            (this.waterAnalysis?.waters || []).forEach(w => {
+                map.set(`${w.chain_id}:${w.resnum}`, w.category || 'bulk');
+            });
+            return map;
+        },
+
+        chainIdFromLine(line) {
+            return (line[21] || ' ').trim() || '_';
+        },
+
+        resnameFromLine(line) {
+            return (line.slice(17, 20) || '').trim().toUpperCase();
+        },
+
+        resnumFromLine(line) {
+            const value = (line.slice(22, 26) || '').trim();
+            return value || '_';
+        },
+
+        async ensureMolstar() {
+            if (window.molstar?.Viewer) return window.molstar;
+            if (!window.__molstarPromise) {
+                window.__molstarPromise = (async () => {
+                    const sources = [
+                        'https://cdn.jsdelivr.net/npm/molstar@5.4.2/build/viewer/molstar.js',
+                        'https://unpkg.com/molstar@5.4.2/build/viewer/molstar.js'
+                    ];
+                    for (const src of sources) {
+                        try {
+                            await new Promise((resolve, reject) => {
+                                const existing = document.querySelector(`script[src="${src}"]`);
+                                if (existing && window.molstar?.Viewer) {
+                                    resolve();
+                                    return;
+                                }
+                                const script = existing || document.createElement('script');
+                                script.src = src;
+                                script.onload = resolve;
+                                script.onerror = reject;
+                                if (!existing) document.head.appendChild(script);
+                            });
+                            if (window.molstar?.Viewer) return window.molstar;
+                        } catch (e) {
+                            // Try the next CDN source.
+                        }
+                    }
+                    throw new Error('Mol* Viewer could not be loaded.');
+                })();
+            }
+            return await window.__molstarPromise;
+        },
+
+        async ensureMolstarViewer(forceRecreate = false) {
+            // Queue-based mutex to prevent concurrent viewer creation
+            while (this.__molstarViewerMutex) {
+                await this.__molstarViewerMutex;
+            }
+
+            let resolveMutex;
+            this.__molstarViewerMutex = new Promise(r => resolveMutex = r);
+
+            try {
+                const element = document.getElementById('protein-preview-viewer');
+                if (!element) {
+                    this.molstarError = 'Preview container not found in DOM.';
+                    return null;
+                }
+
+                if (forceRecreate && rawMolstarViewer) {
+                    try {
+                        if (rawMolstarViewer?.dispose) rawMolstarViewer.dispose();
+                    } catch (e) {}
+                    rawMolstarViewer = null;
+                    this.molstarViewer = null;
+                }
+
+                if (rawMolstarViewer && !forceRecreate) return rawMolstarViewer;
+
+                if (element) { element.style.height = '100%'; element.style.width = '100%'; }
+
+                let waited = 0;
+                while (waited < 25) {
+                    const w = element.offsetWidth || element.clientWidth || 0;
+                    const h = element.offsetHeight || element.clientHeight || 0;
+                    if (w >= 120 && h >= 120) break;
+                    await new Promise(r => requestAnimationFrame(r));
+                    waited++;
+                }
+
+                await this.ensureMolstar();
+
+                if (rawMolstarViewer && !forceRecreate) return rawMolstarViewer;
+
+                try {
+                    rawMolstarViewer = await window.molstar.Viewer.create(element, {
+                        layoutIsExpanded: false,
+                        layoutShowControls: false,
+                        layoutShowRemoteState: false,
+                        layoutShowSequence: false,
+                        layoutShowLog: false,
+                        layoutShowLeftPanel: false,
+                        viewportShowControls: true,
+                        viewportShowExpand: true,
+                        viewportShowSelectionMode: false,
+                        viewportShowAnimation: false,
+                        pdbProvider: 'rcsb',
+                        emdbProvider: 'rcsb',
+                    });
+                    this.molstarViewer = true;
+                } catch (createErr) {
+                    this.molstarError = 'Failed to initialize Mol* viewer: ' + (createErr?.message || createErr);
+                    console.error('[Mol*] Viewer.create failed:', createErr);
+                    return null;
+                }
+
+                if (rawMolstarViewer?.handleResize) rawMolstarViewer.handleResize();
+                return rawMolstarViewer;
+            } finally {
+                const r = resolveMutex;
+                this.__molstarViewerMutex = null;
+                r();
+            }
+        },
+
+        async clearMolstarScene() {
+            if (rawMolstarViewer?.plugin?.clear) {
+                try {
+                    await rawMolstarViewer.plugin.clear();
+                } catch (e) {}
+            }
+        },
+
+        async openReceptorInChimeraX() {
+            const pdbText = this.getFilteredPreviewPdbText();
+            if (!pdbText) return;
+            try {
+                const response = await fetch('/api/docking/receptor/launch_chimera', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdb_text: pdbText })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Failed to open in ChimeraX');
+            } catch (err) {
+                alert('Could not open ChimeraX: ' + err.message);
+            }
+        },
+
+        clearMolstarHighlight() {
+            const viewer = rawMolstarViewer;
+            if (!viewer) return;
+            try {
+                viewer.structureInteractivity({ action: 'select' });
+                viewer.structureInteractivity({ action: 'highlight' });
+                viewer.plugin?.managers?.structure?.focus?.clear?.();
+            } catch (e) {}
+        },
+
+        stripPdbqtToPdb(pdbqtText) {
+            // Mol* PDB parser hangs if it sees invalid elements (PDBQT atom types like 'OA' or 'A').
+            // By truncating strictly to 66 columns, we remove PDBQT charges and atom types,
+            // leaving standard PDB coordinates. Mol* will safely infer elements from the atom name.
+            const cleanText = (pdbqtText || '').replace(/\r/g, '');
+            return cleanText.split('\n').map(line => {
+                if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
+                    return line.substring(0, 66);
+                }
+                return line;
+            }).join('\n');
+        },
+
+        async renderProteinPreview(options = {}) {
+            if (!this.originalPdbText) return;
+            const token = ++this.molstarRenderToken;
+            this.molstarLoading = true;
+            this.molstarError = '';
+            this.molstarStatus = 'Rendering filtered receptor in Mol*...';
+
+            try {
+                await this.$nextTick();
+                let viewer = await this.ensureMolstarViewer();
+                if (!viewer || token !== this.molstarRenderToken) return;
+
+                // extra timing guard for init on some browsers / after step changes
+                if (!viewer.plugin || !viewer.handleResize) {
+                    await new Promise(r => setTimeout(r, 30));
+                    viewer = await this.ensureMolstarViewer(true); // force recreate if stale
+                    if (!viewer || token !== this.molstarRenderToken) return;
+                }
+
+                if (viewer.plugin?.clear) await viewer.plugin.clear();
+
+                // Source-of-truth rule for the receptor shown in Mol*:
+                //  - Once a receptor has been prepared, display the ACTUAL prepared
+                //    receptor (this.proteinPdbqt) — i.e. exactly what will be docked,
+                //    with waters and the co-crystal ligand already stripped.
+                //  - Before preparation, show the live filtered preview of the ORIGINAL
+                //    PDB so the user can decide what to keep.
+                // Previously this always rendered the filtered original, so waters and
+                // the co-crystal ligand kept appearing even after preparation.
+                let pdbText;
+                let previewLabel;
+                if (this.proteinPdbqt) {
+                    pdbText = this.stripPdbqtToPdb(this.proteinPdbqt);
+                    previewLabel = 'Prepared receptor';
+                    if (!pdbText.split('\n').some(line => line.startsWith('ATOM') || line.startsWith('HETATM'))) {
+                        this.molstarStatus = 'Prepared receptor contains no atoms.';
+                        return;
+                    }
+                } else {
+                    const rawPdbText = this.getFilteredPreviewPdbText();
+                    const hasAtoms = rawPdbText.split('\n').some(line => line.startsWith('ATOM') || line.startsWith('HETATM'));
+                    if (!hasAtoms) {
+                        this.molstarStatus = 'No atoms match the current live controls.';
+                        return;
+                    }
+                    pdbText = this.stripPdbqtToPdb(rawPdbText);
+                    previewLabel = 'Live receptor preview';
+                }
+
+                try {
+                    await Promise.race([
+                        viewer.loadStructureFromData(pdbText, 'pdb', { dataLabel: previewLabel }),
+                        new Promise((_, rej) => setTimeout(() => rej(new Error('Mol* protein load timed out after 8s')), 8000))
+                    ]);
+                } catch (__loadErr) {
+                    console.error('Mol* protein load failed:', __loadErr);
+                    // A failed/timed-out load leaves this viewer instance unusable for future
+                    // loads, so drop it and let the next render create a fresh one.
+                    try { viewer?.dispose?.(); } catch (e) {}
+                    rawMolstarViewer = null;
+                    this.molstarViewer = null;
+                    throw __loadErr;
+                }
+
+                if (this.ligandPdbqt && this.showLigands) {
+                    // fire-and-forget so a slow additional load doesn't block clearing the loading state for the main protein
+                    viewer.loadStructureFromData(this.stripPdbqtToPdb(this.ligandPdbqt), 'pdb', { dataLabel: 'Prepared ligand' }).catch(e => {
+                        console.warn('Ligand preview could not be rendered by Mol*:', e);
+                    });
+                }
+
+                // PHASE 3: load live 3D grid box (wireframe via PDB+CONECT so it appears in viewer)
+                if (this.showGridBox && this.positiveNumber(this.grid.size_x) && this.positiveNumber(this.grid.size_y) && this.positiveNumber(this.grid.size_z)) {
+                    const gridPdb = this.generateGridBoxPdb();
+                    if (gridPdb) {
+                        viewer.loadStructureFromData(gridPdb, 'pdb', { dataLabel: 'Docking Grid Box' }).catch(e => {
+                            console.warn('Grid box preview could not be rendered by Mol*:', e);
+                        });
+                    }
+                }
+
+                if (viewer.handleResize) viewer.handleResize();
+                if (options.keepCamera && viewer.plugin?.canvas3d) {
+                    viewer.plugin.canvas3d.setProps({ camera: { manualReset: true } });
+                }
+                this.molstarStatus = '';
+                await this.highlightSelectedPocket();
+            } catch (e) {
+                this.molstarError = e.message;
+                this.molstarStatus = '';
+            } finally {
+                if (token === this.molstarRenderToken) this.molstarLoading = false;
+            }
+        },
+
+        togglePreviewSetting() {
+            if (this.originalPdbText) this.renderProteinPreview({ keepCamera: true }).catch(() => {});
+        },
+
+        async highlightSelectedPocket() {
+            const viewer = rawMolstarViewer;
+            if (!viewer) return;
+            this.clearMolstarHighlight();
+            if (!this.showPockets || !this.selectedPocket) return;
+
+            const residues = this.selectedPocket.nearby_residues || [];
+            let focused = false;
+            for (const residue of residues.slice(0, 12)) {
+                const [chainId, resnumText] = String(residue).split(':');
+                const resnum = Number.parseInt(resnumText, 10);
+                if (!Number.isFinite(resnum)) continue;
+                try {
+                    const elements = { auth_asym_id: chainId, beg_auth_seq_id: resnum, end_auth_seq_id: resnum };
+                    viewer.structureInteractivity({ elements, action: 'select', applyGranularity: true });
+                    if (!focused) {
+                        viewer.structureInteractivity({ elements, action: 'focus', applyGranularity: true });
+                        focused = true;
+                    }
+                } catch (e) {}
+            }
+
+            if (!focused && this.selectedPocket.ligand_resnum) {
+                try {
+                    const elements = {
+                        auth_asym_id: this.selectedPocket.ligand_chain,
+                        beg_auth_seq_id: this.selectedPocket.ligand_resnum,
+                        end_auth_seq_id: this.selectedPocket.ligand_resnum
+                    };
+                    viewer.structureInteractivity({ elements, action: 'select', applyGranularity: true });
+                    viewer.structureInteractivity({ elements, action: 'focus', applyGranularity: true });
+                } catch (e) {}
+            }
+        },
+
         async prepareProtein() {
-            const file = this.$refs.proteinFile.files[0];
-            if(!file) return;
+            if (!this.originalPdbText) {
+                this.proteinError = 'Analyze a protein before generating the receptor.';
+                return;
+            }
             this.loading = true;
             this.clearMessages();
             this.proteinError = '';
             this.report = null;
             this.jobId = '';
-            this.log1 = "Uploading and preparing protein...";
+            this.dockingLoading = false;
+            this.gridConfirmed = false;
+            this.log1 = 'Generating receptor PDBQT...';
+
             try {
-                const text = await file.text();
+                const textToSend = this.hasChainSelection ? this.getFilteredPdbText() : this.originalPdbText;
                 const res = await fetch('/api/docking/protein_prepare', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ pdb_text: text, remove_water: this.removeWater, add_charges: this.addCharges })
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pdb_text: textToSend,
+                        asset_id: this.currentAssetId || null,
+                        remove_water: this.removeWater,
+                        add_charges: this.addCharges,
+                        keep_cofactors: this.keepCofactors,
+                        keep_metals: this.keepMetals,
+                        keep_active_site_waters: this.keepActiveSiteWaters,
+                        remove_bulk_waters: this.removeWater,
+                    })
                 });
-                if(!res.ok) throw new Error(await this.apiError(res, 'Protein preparation failed'));
+                if (!res.ok) throw new Error(await this.apiError(res, 'Protein preparation failed'));
                 const data = await res.json();
                 this.proteinPdbqt = data.pdbqt;
-                this.log1 = `Success! Protein prepared.\nSize: ${this.proteinPdbqt.length} bytes`;
-                this.statusMessage = 'Protein prepared. Continue with ligand preparation.';
-                setTimeout(() => this.step = 2, 500);
-            } catch(e) {
+                const selectionNote = this.hasChainSelection ? ` using chain(s): ${this.selectedChains.join(', ')}` : ' using the full structure';
+                this.log1 = `Success. Receptor generated${selectionNote}.\nSize: ${this.proteinPdbqt.length} bytes`;
+                this.statusMessage = 'Receptor generated. Continue to docking.';
+                this.step = 7;
+                this.$nextTick(() => { this.autoGrid().catch(() => {}); if (this.originalPdbText) this.renderProteinPreview({ keepCamera: true }).catch(() => {}); });
+            } catch (e) {
                 this.proteinPdbqt = '';
                 this.proteinError = e.message;
                 this.errorMessage = `Protein preparation failed: ${e.message}`;
@@ -290,15 +1772,16 @@ document.addEventListener('alpine:init', () => {
                 this.loading = false;
             }
         },
-        
+
         async prepareLigand() {
-            if(!this.ligandSmiles.trim()) return;
+            if (!this.ligandSmiles.trim()) return;
             this.loading = true;
             this.clearMessages();
             this.ligandError = '';
             this.report = null;
             this.jobId = '';
-            this.log2 = "Generating 3D ligand conformation...";
+            this.dockingLoading = false;
+            this.log2 = 'Generating 3D ligand conformation...';
             try {
                 const form = new FormData();
                 form.append('input_text', this.ligandSmiles.trim());
@@ -309,29 +1792,24 @@ document.addEventListener('alpine:init', () => {
                     method: 'POST',
                     body: form
                 });
-                if(!res.ok) throw new Error(await this.apiError(res, 'Ligand preparation failed'));
+                if (!res.ok) throw new Error(await this.apiError(res, 'Ligand preparation failed'));
 
                 const data = await res.json();
-                if(data.success === false) {
-                    throw new Error(data.error || 'Ligand preparation failed.');
-                }
+                if (data.success === false) throw new Error(data.error || 'Ligand preparation failed.');
 
                 let pdbqt = data.pdbqt || data.pdbqt_content || '';
-                if(!pdbqt && data.download_url) {
+                if (!pdbqt && data.download_url) {
                     const fileRes = await fetch(data.download_url);
-                    if(!fileRes.ok) throw new Error(await this.apiError(fileRes, 'Ligand PDBQT download failed'));
+                    if (!fileRes.ok) throw new Error(await this.apiError(fileRes, 'Ligand PDBQT download failed'));
                     pdbqt = await fileRes.text();
                 }
-
-                if(!pdbqt || !pdbqt.trim()) {
-                    throw new Error('Ligand preparation returned an empty PDBQT structure.');
-                }
+                if (!pdbqt || !pdbqt.trim()) throw new Error('Ligand preparation returned an empty PDBQT structure.');
 
                 this.ligandPdbqt = pdbqt;
-                this.log2 = `Success! Ligand ready.\nSize: ${this.ligandPdbqt.length} bytes`;
-                this.statusMessage = 'Ligand prepared. Configure the grid box next.';
-                setTimeout(() => this.step = 3, 500);
-            } catch(e) {
+                this.log2 = `Success. Ligand ready.\nSize: ${this.ligandPdbqt.length} bytes`;
+                this.statusMessage = 'Ligand prepared and added to the live viewer.';
+                if (this.originalPdbText) this.renderProteinPreview({ keepCamera: true }).catch(() => {});
+            } catch (e) {
                 this.ligandPdbqt = '';
                 this.ligandError = e.message;
                 this.errorMessage = `Ligand preparation failed: ${e.message}`;
@@ -340,73 +1818,163 @@ document.addEventListener('alpine:init', () => {
                 this.loading = false;
             }
         },
-        
+
         async autoGrid() {
+            if (!this.proteinPdbqt) {
+                this.gridError = 'Generate a receptor before auto-detecting the grid.';
+                return;
+            }
             this.loading = true;
             this.clearMessages();
             this.gridError = '';
+            this.gridBoxWarning = '';
             try {
                 const res = await fetch('/api/docking/gridbox', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ pdbqt_text: this.proteinPdbqt })
                 });
-                if(!res.ok) throw new Error(await this.apiError(res, 'Grid box calculation failed'));
+                if (!res.ok) throw new Error(await this.apiError(res, 'Grid box calculation failed'));
                 this.grid = await res.json();
-                this.statusMessage = 'Grid box auto-detected. Review and confirm the values.';
-            } catch(e) {
+                this.showGridBox = true;
+                this.gridConfirmed = true;
+                this.statusMessage = 'Grid box auto-detected.';
+
+                // This endpoint always uses the whole-receptor bounding box (blind docking),
+                // not a focused pocket/ligand site. A box this large searched at low
+                // exhaustiveness gives unreliable poses/affinities — warn the user.
+                const maxDim = Math.max(this.grid.size_x || 0, this.grid.size_y || 0, this.grid.size_z || 0);
+                if (maxDim > 35) {
+                    const suggestedExhaustiveness = Math.max(32, Math.round(maxDim));
+                    this.gridBoxWarning = `This box spans the whole receptor (~${maxDim.toFixed(0)} Å) rather than a focused pocket — this is blind docking. ` +
+                        `Results at the current exhaustiveness (${this.exhaustiveness}) may be unreliable. ` +
+                        `Consider using a detected pocket or ligand site instead, or raise Exhaustiveness to ~${suggestedExhaustiveness}+.`;
+                }
+
+                if (this.originalPdbText) this.renderProteinPreview({ keepCamera: true }).catch(() => {});
+            } catch (e) {
                 this.gridError = e.message;
                 this.errorMessage = `Auto-grid failed: ${e.message}`;
             } finally {
                 this.loading = false;
             }
         },
-        
+
         saveGridbox() {
             this.clearMessages();
             this.gridError = '';
-            if(!this.canRun) {
-                this.gridError = 'Protein, ligand, and positive grid dimensions are required before running docking.';
+            if (!this.positiveNumber(this.grid.size_x) || !this.positiveNumber(this.grid.size_y) || !this.positiveNumber(this.grid.size_z)) {
+                this.gridError = 'Grid dimensions must be positive numbers.';
                 this.errorMessage = this.gridError;
                 return;
             }
-            this.statusMessage = 'Grid confirmed. Ready to launch AutoDock Vina.';
-            this.step = 4;
+            this.showGridBox = true;
+            this.gridConfirmed = true;
+            this.statusMessage = 'Grid confirmed.';
+            if (this.originalPdbText) this.renderProteinPreview({ keepCamera: true }).catch(() => {});
         },
-        
+
+        scheduleGridBoxUpdate() {
+            this.showGridBox = true;
+            if (this._gridDebounce) clearTimeout(this._gridDebounce);
+            this._gridDebounce = setTimeout(() => {
+                if (this.originalPdbText && this.molstarViewer) {
+                    this.renderProteinPreview({ keepCamera: true }).catch(() => {});
+                }
+            }, 120);
+        },
+
         async runDocking() {
-            if(!this.canRun) return;
+            console.log('runDocking entered');
+            console.log('canRun value:', this.canRun);
+            console.log("RUNDOCKING ENTERED");
+            console.log("canRun value:", this.canRun, "loading:", this.loading, "dockingLoading:", this.dockingLoading, "proteinPdbqt:", !!this.proteinPdbqt, "ligandPdbqt:", !!this.ligandPdbqt, "gridConfirmed:", this.gridConfirmed, "grid:", JSON.stringify(this.grid));
+            if (!this.canRun) return;
             this.loading = true;
+            this.dockingLoading = true;
             this.clearMessages();
             this.runError = '';
             this.report = null;
             this.jobId = '';
             this.runLog = 'Submitting docking job to AutoDock Vina...';
+            // Log the exact state being sent for debugging why Vina may not start
+            const protLen = this.proteinPdbqt ? this.proteinPdbqt.length : 0;
+            const ligLen = this.ligandPdbqt ? this.ligandPdbqt.length : 0;
+            this.runLog += `\nState: receptor=${protLen}B, ligand=${ligLen}B`;
+            this.runLog += `\nGrid center=(${this.grid.center_x}, ${this.grid.center_y}, ${this.grid.center_z}) size=(${this.grid.size_x}x${this.grid.size_y}x${this.grid.size_z})`;
+            console.log("ABOUT TO CALL /api/docking/run");
             try {
-                const res = await fetch('/api/docking/run', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        protein_pdbqt: this.proteinPdbqt,
-                        ligand_pdbqt: this.ligandPdbqt,
-                        center_x: parseFloat(this.grid.center_x),
-                        center_y: parseFloat(this.grid.center_y),
-                        center_z: parseFloat(this.grid.center_z),
-                        size_x: parseFloat(this.grid.size_x),
-                        size_y: parseFloat(this.grid.size_y),
-                        size_z: parseFloat(this.grid.size_z),
-                        exhaustiveness: parseInt(this.exhaustiveness),
-                        num_modes: parseInt(this.numModes)
-                    })
+                console.log("fetch('/api/docking/run') entered");
+                const payload = JSON.stringify({
+                    protein_pdbqt: this.proteinPdbqt,
+                    ligand_pdbqt: this.ligandPdbqt,
+                    center_x: Number.parseFloat(this.grid.center_x),
+                    center_y: Number.parseFloat(this.grid.center_y),
+                    center_z: Number.parseFloat(this.grid.center_z),
+                    size_x: Number.parseFloat(this.grid.size_x),
+                    size_y: Number.parseFloat(this.grid.size_y),
+                    size_z: Number.parseFloat(this.grid.size_z),
+                    exhaustiveness: Number.parseInt(this.exhaustiveness, 10),
+                    num_modes: Number.parseInt(this.numModes, 10),
+                    scoring_function: this.scoringFunction || 'vina',
+                    seed: this.vinaSeed !== '' && this.vinaSeed !== null ? Number.parseInt(this.vinaSeed, 10) : null,
+                    selected_chains: this.selectedChains || [],
+                    receptor_name: this.proteinFileName || null,
+                    ligand_name: (this.ligandSmiles || '').substring(0, 40) || null,
+                    protein_analysis_summary: this.proteinAnalysis ? {
+                        total_chains: this.proteinAnalysis.total_chains,
+                        recommendation: this.proteinAnalysis.recommendation,
+                        ai_recommendation: this.aiRecommendation || null,
+                        chosen_source: this.chosenChainSource || (this.aiRecommendation ? 'ai_expert' : 'heuristic'),
+                        selected: this.selectedChains
+                    } : null
                 });
-                if(!res.ok) throw new Error(await this.apiError(res, 'Docking run failed'));
+                console.log('payload size:', payload.length);
+                const res = await fetch('/api/docking/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: payload
+                });
+                console.log('response code:', res.status);
+                if (!res.ok) throw new Error(await this.apiError(res, 'Docking run failed'));
                 const data = await res.json();
-                this.report = data.report;
                 this.jobId = data.job_id || '';
-                if(!this.report || !Array.isArray(this.report.poses) || !this.report.poses.length) {
+                this.runLog = `Job started: ${this.jobId}\nPolling for completion...`;
+                
+                let jobStatus = 'running';
+                let finalReport = null;
+                while (jobStatus === 'running' || jobStatus === 'pending') {
+                    await new Promise(r => setTimeout(r, 2500));
+                    const pollRes = await fetch(`/api/docking/job/${this.jobId}`);
+                    if (!pollRes.ok) {
+                        if (pollRes.status === 404) {
+                            // Job still running (report not written yet) — continue polling without error
+                            continue;
+                        }
+                        throw new Error(await this.apiError(pollRes, 'Failed to poll job status'));
+                    }
+                    const pollData = await pollRes.json();
+                    
+                    if (pollData.db_record && pollData.db_record.status) {
+                        jobStatus = pollData.db_record.status;
+                        if (jobStatus === 'completed') {
+                            finalReport = pollData.report;
+                        } else if (jobStatus === 'failed') {
+                            throw new Error(pollData.db_record.error_message || 'Docking failed on server');
+                        }
+                    } else if (pollData.report) {
+                        jobStatus = 'completed';
+                        finalReport = pollData.report;
+                    }
+                }
+                
+                this.report = finalReport;
+                if (!this.report || !Array.isArray(this.report.poses) || !this.report.poses.length) {
                     throw new Error('Docking completed but no poses were returned.');
                 }
                 this.runLog = `Docking completed.\nPoses: ${this.report.num_poses}\nBest affinity: ${this.report.best_affinity} kcal/mol`;
                 this.statusMessage = 'Docking completed successfully.';
-            } catch(e) {
+            } catch (e) {
                 this.report = null;
                 this.jobId = '';
                 this.runError = e.message;
@@ -414,7 +1982,71 @@ document.addEventListener('alpine:init', () => {
                 this.runLog = `Error: ${e.message}`;
             } finally {
                 this.loading = false;
+                this.dockingLoading = false;
             }
+        },
+
+        async openDockingInChimeraX() {
+            if (!this.jobId) return;
+            const rank = 1;
+            try {
+                this.statusMessage = 'Launching ChimeraX...';
+                const launchRes = await fetch(`/api/docking/job/${this.jobId}/launch_chimera`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rank })
+                });
+                if (launchRes.ok) {
+                    const result = await launchRes.json();
+                    this.statusMessage = result.message || 'ChimeraX launched successfully.';
+                    return;
+                }
+
+                const scriptRes = await fetch(`/api/docking/job/${this.jobId}/chimera_script`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rank })
+                });
+                if (!scriptRes.ok) throw new Error(await this.apiError(scriptRes, 'Failed to generate ChimeraX script'));
+                const data = await scriptRes.json();
+
+                const blob = new Blob([data.script], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = data.filename || `view_pose_${rank}.cxc`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.statusMessage = 'ChimeraX script downloaded for the best pose.';
+            } catch (e) {
+                this.errorMessage = `ChimeraX action failed: ${e.message}`;
+            }
+        },
+
+        qualityBadgeClass(label) {
+            if (label === 'Excellent') return 'bg-emerald-100 text-emerald-700';
+            if (label === 'Good') return 'bg-blue-100 text-blue-700';
+            if (label === 'Acceptable') return 'bg-amber-100 text-amber-700';
+            if (label === 'Poor') return 'bg-red-100 text-red-700';
+            return 'bg-slate-100 text-slate-600';
+        },
+
+        confidenceClass(confidence) {
+            const value = String(confidence || '').toLowerCase();
+            if (value.includes('high')) return 'bg-emerald-100 text-emerald-700';
+            if (value.includes('low')) return 'bg-red-100 text-red-700';
+            if (value.includes('score')) return 'bg-sky-100 text-sky-700';
+            return 'bg-amber-100 text-amber-700';
+        },
+
+        formatCenter(center) {
+            if (!center) return 'N/A';
+            const x = center.x ?? center.center_x ?? 0;
+            const y = center.y ?? center.center_y ?? 0;
+            const z = center.z ?? center.center_z ?? 0;
+            return `${x}, ${y}, ${z}`;
         }
     }));
 });

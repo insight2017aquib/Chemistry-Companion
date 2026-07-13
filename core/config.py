@@ -27,6 +27,9 @@ Examples:
 CHEM_COMPANION_LOGGING__LEVEL=DEBUG
 CHEM_COMPANION_IMAGE__WIDTH=800
 CHEM_COMPANION_DIRECTORIES__OUTPUT_DIR=/tmp/results
+CHEM_COMPANION_LLM__PROVIDER=deepseek
+CHEM_COMPANION_LLM__ENABLE_LLM=true
+CHEM_COMPANION_LLM__MAX_RETRIES=3
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ logger.addHandler(logging.NullHandler())
 LogLevel = Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 ExportFormat = Literal["csv", "excel", "pdf"]
 ImageFormat = Literal["png", "svg"]
+LLMProvider = Literal["deepseek", "openrouter", "groq", "gemini"]
 BatchErrorMode = Literal["continue", "stop"]
 
 
@@ -325,6 +329,133 @@ class BatchSettings(BaseModel):
         return self
 
 
+class LLMSettings(BaseModel):
+    """
+    LLM explanation configuration.
+
+    Controls which provider is used for AI-powered explanations, the
+    automatic fallback chain, retry behaviour, caching, and the
+    deterministic template fallback.
+
+    Supported providers: ``"groq"``, ``"deepseek"``, ``"openrouter"``.
+
+    Fallback strategy
+    -----------------
+    1. Try ``primary_provider`` first.
+    2. On failure, iterate through ``fallback_providers`` in order.
+    3. If *all* LLM providers fail and ``enable_fallback`` is ``True``,
+       return a deterministic template-based explanation (zero API calls).
+
+    Rate-limit notes (free tiers)
+    -----------------------------
+    - **Groq free tier**: ~30 requests/min, 14 400 tokens/min for most
+      models.  Ideal for short chemistry explanations.
+    - **DeepSeek**: Pay-per-token; watch for "Insufficient Balance".
+    - **OpenRouter free models**: Generous but may queue under load.
+
+    Attributes
+    ----------
+    primary_provider:
+        First provider to try (``"groq"``, ``"deepseek"``,
+        ``"openrouter"``).
+    fallback_providers:
+        Ordered list of providers to try when ``primary_provider`` fails.
+        Providers without a configured API key are silently skipped.
+    enable_llm:
+        Master switch.  When ``False``, all requests immediately use the
+        deterministic template fallback (zero API calls).
+    enable_fallback:
+        If ``True``, the system silently degrades to templates when *all*
+        LLM providers fail.  When ``False``, failures are surfaced.
+    cache_enabled:
+        If ``True``, explanations are cached in-memory to reduce repeated
+        API calls for identical inputs.
+    max_retries:
+        Number of attempts (with exponential back-off) for retryable
+        errors such as rate-limits or transient network failures.
+
+    Examples
+    --------
+    Via environment variables::
+
+        CHEM_COMPANION_LLM__PRIMARY_PROVIDER=groq
+        CHEM_COMPANION_LLM__ENABLE_LLM=true
+        CHEM_COMPANION_LLM__MAX_RETRIES=3
+
+    Via Python::
+
+        settings.llm.primary_provider = "deepseek"
+        settings.llm.fallback_providers = ["groq", "openrouter"]
+    """
+
+    primary_provider: LLMProvider = Field(
+        default="groq",
+        description="Primary LLM provider to try first",
+    )
+    fallback_providers: list[str] = Field(
+        default_factory=lambda: ["groq", "deepseek"],
+        description="Ordered list of fallback providers when primary fails",
+    )
+    enable_llm: bool = Field(
+        default=True,
+        description="Master switch for LLM-powered explanations",
+    )
+    enable_fallback: bool = Field(
+        default=True,
+        description="Allow silent degradation to template-based explanations",
+    )
+    cache_enabled: bool = Field(
+        default=True,
+        description="Enable in-memory explanation cache",
+    )
+    max_retries: int = Field(
+        default=2,
+        description="Retry count for transient LLM errors",
+    )
+
+    @field_validator("max_retries")
+    @classmethod
+    def _validate_max_retries(cls, v: int) -> int:
+        if not isinstance(v, int):
+            raise TypeError("max_retries must be an integer")
+        if v < 1 or v > 10:
+            raise ValueError("max_retries must be between 1 and 10")
+        return v
+
+    @field_validator("fallback_providers", mode="before")
+    @classmethod
+    def _validate_fallback_providers(cls, v: Any) -> list[str]:
+        """Accept comma-separated string from env vars or a list."""
+        if isinstance(v, str):
+            return [p.strip() for p in v.split(",") if p.strip()]
+        if isinstance(v, list):
+            return [str(p).strip() for p in v if str(p).strip()]
+        raise TypeError("fallback_providers must be a list or comma-separated string")
+
+
+class ExternalToolsSettings(BaseModel):
+    """
+    Configuration for external scientific tools (ChimeraX, etc.).
+
+    These tools are treated as optional power features, similar to how
+    optional LLM providers are handled.
+    """
+
+    chimera_executable: Optional[str] = Field(
+        default=None,
+        description="Full path to ChimeraX (or classic Chimera) executable. "
+                    "Example: C:\\\\Program Files\\\\ChimeraX\\\\bin\\\\ChimeraX.exe"
+    )
+    prefer_chimerax: bool = Field(
+        default=True,
+        description="Prefer ChimeraX over classic Chimera when both are configured"
+    )
+    auto_launch: bool = Field(
+        default=False,
+        description="Attempt to automatically launch ChimeraX when 'Open in ChimeraX' is clicked"
+    )
+
+
 class ChemistryCompanionSettings(BaseSettings):
     """
     Top-level application settings.
@@ -336,6 +467,8 @@ class ChemistryCompanionSettings(BaseSettings):
     --------
     CHEM_COMPANION_LOGGING__LEVEL=DEBUG
     CHEM_COMPANION_IMAGE__WIDTH=800
+    CHEM_COMPANION_LLM__PRIMARY_PROVIDER=groq
+    CHEM_COMPANION_LLM__FALLBACK_PROVIDERS=groq,deepseek
     CHEM_COMPANION_DIRECTORIES__OUTPUT_DIR=/tmp/results
     """
 
@@ -349,12 +482,14 @@ class ChemistryCompanionSettings(BaseSettings):
     )
 
     app_name: str = Field(default="Chemistry Companion", description="Application name")
-    version: str = Field(default="0.1.0", description="Application version")
+    version: str = Field(default="3.0.0", description="Application version (align with pyproject.toml)")
     directories: DirectorySettings = Field(default_factory=DirectorySettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     image: ImageSettings = Field(default_factory=ImageSettings)
     export: ExportSettings = Field(default_factory=ExportSettings)
     batch: BatchSettings = Field(default_factory=BatchSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    external_tools: ExternalToolsSettings = Field(default_factory=ExternalToolsSettings)
 
     @field_validator("app_name")
     @classmethod
@@ -518,6 +653,8 @@ __all__ = [
     "ExportSettings",
     "ImageFormat",
     "ImageSettings",
+    "LLMProvider",
+    "LLMSettings",
     "LogLevel",
     "LoggingSettings",
     "get_settings",

@@ -3,23 +3,19 @@
 {% block content %}
 <header class="mb-6">
     <h1 class="text-2xl font-bold">Batch Processing Workflow</h1>
-    <p class="text-sm text-secondary">Upload a CSV containing SMILES strings to rapidly compute properties for multiple compounds.</p>
+    <p class="text-sm text-secondary">Upload a CSV or Excel file of SMILES <em>or</em> IUPAC names — names are converted to structures automatically — to rapidly compute properties for multiple compounds.</p>
 </header>
 <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
     <div class="xl:col-span-4">
         <div class="card p-6">
             <h2 class="font-bold mb-4">Upload Dataset</h2>
-            <form action="/api/batch/process" method="post" enctype="multipart/form-data" class="space-y-4"
-                  hx-post="/api/batch/process"
-                  hx-encoding="multipart/form-data"
-                  hx-target="#batch-results-panel"
-                  hx-swap="innerHTML"
-                  hx-indicator="#batch-loading-indicator">
+            <form action="/api/batch" method="post" enctype="multipart/form-data" class="space-y-4"
+                  onsubmit="return validateAndSubmitBatch(this)">
                 <div class="border-2 border-dashed border-border rounded-lg p-6 text-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer" onclick="document.getElementById('file-upload').click()">
                     <div class="text-4xl mb-2 opacity-50">📂</div>
-                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Click to select CSV file</p>
-                    <p class="text-xs text-slate-500 mt-1">Must contain a 'smiles' column</p>
-                    <input id="file-upload" type="file" name="file" accept=".csv" class="hidden" required>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">Click to select a CSV / Excel / TXT file</p>
+                    <p class="text-xs text-slate-500 mt-1">Must contain a 'smiles' OR an 'iupac'/'name' column</p>
+                    <input id="file-upload" type="file" name="file" accept=".csv,.xlsx,.xls,.txt" class="hidden" required>
                 </div>
                 
                 <div>
@@ -49,5 +45,104 @@
                     <p class="text-sm font-medium">Processing batch...</p>
                 </div>
             </div>
-            {% include "components/empty_state.html" %}
+            <div id="batch-content">
+                {% include "components/empty_state.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Surgical client-side validation + manual fetch handling for batch (fixes generic toasts and JSON-in-HTML swap)
+// Reuses existing showToast, htmx indicator, and panel. Minimal addition.
+function validateAndSubmitBatch(form) {
+    const fileInput = form.querySelector('input[type="file"]');
+    const panel = document.getElementById('batch-content');
+    const indicator = document.getElementById('batch-loading-indicator');
+
+    if (!fileInput || !fileInput.files.length) {
+        if (panel) panel.innerHTML = '<div class="text-red-600 p-4">Please select a CSV, Excel, or TXT file containing a "smiles" or "iupac"/"name" column before starting the batch.</div>';
+        return false; // prevent submit
+    }
+    const fname = fileInput.files[0].name.toLowerCase();
+    if (!/\.(csv|xlsx|xls|txt)$/.test(fname)) {
+        if (panel) panel.innerHTML = '<div class="text-amber-600 p-4">Supported file types: .csv, .xlsx, .xls, .txt</div>';
+        return false;
+    }
+
+    // Manual fetch to get JSON and render nicely (prevents raw JSON in panel and generic HTMX toasts)
+    const formData = new FormData(form);
+    if (indicator) indicator.classList.remove('opacity-0', 'pointer-events-none');
+
+    fetch('/api/batch', { method: 'POST', body: formData })
+        .then(r => {
+            if (!r.ok) return r.json().then(j => { throw new Error(j.detail || 'Batch failed'); });
+            return r.json();
+        })
+        .then(data => {
+            if (panel) {
+                const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+                const statusColor = s => s === 'success' ? 'text-green-700 dark:text-green-400'
+                    : s === 'partial' ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-red-600 dark:text-red-400';
+
+                let html = `<div class="p-4"><h3 class="font-semibold mb-2">Batch Complete</h3>
+                    <p class="text-sm mb-3">Total: <strong>${data.total}</strong>
+                    | Successful: <strong>${data.successful}</strong>`;
+                if (data.partial) html += ` | Partial: <strong>${data.partial}</strong>`;
+                html += ` | Failed: <strong>${data.failed}</strong>`;
+                if (data.avg_mw) html += ` | Avg MW: <strong>${data.avg_mw}</strong>`;
+                html += `</p>`;
+
+                // Download buttons for the enriched results file
+                if (data.download_xlsx || data.download_csv) {
+                    html += '<div class="flex gap-2 mb-3">';
+                    if (data.download_xlsx) html += `<a href="/api/batch/download/${encodeURIComponent(data.download_xlsx)}" class="btn-primary text-xs px-3 py-1.5" download>⬇ Download Excel</a>`;
+                    if (data.download_csv) html += `<a href="/api/batch/download/${encodeURIComponent(data.download_csv)}" class="text-primary text-xs hover:underline self-center" download>Download CSV</a>`;
+                    html += '</div>';
+                }
+
+                if (data.results && data.results.length) {
+                    html += `<div class="overflow-auto max-h-80 border border-border rounded-lg">
+                        <table class="w-full text-xs">
+                          <thead class="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                            <tr class="text-left">
+                              <th class="px-2 py-1.5 font-semibold">Name</th>
+                              <th class="px-2 py-1.5 font-semibold">Resolved SMILES</th>
+                              <th class="px-2 py-1.5 font-semibold">Formula</th>
+                              <th class="px-2 py-1.5 font-semibold">MW</th>
+                              <th class="px-2 py-1.5 font-semibold">Status</th>
+                            </tr>
+                          </thead><tbody>`;
+                    data.results.slice(0, 100).forEach(r => {
+                        const label = r.name || r.input_iupac || '';
+                        const src = r.source ? ` <span class="text-slate-400">(${esc(r.source)})</span>` : '';
+                        const title = r.input_iupac ? ` title="IUPAC: ${esc(r.input_iupac)}"` : '';
+                        html += `<tr class="border-t border-border align-top"${title}>
+                            <td class="px-2 py-1 font-medium">${esc(label)}</td>
+                            <td class="px-2 py-1 font-mono break-all">${esc(r.smiles) || '<span class="text-red-500">—</span>'}</td>
+                            <td class="px-2 py-1">${esc(r.formula)}</td>
+                            <td class="px-2 py-1">${r.mw ? esc(r.mw) : ''}</td>
+                            <td class="px-2 py-1 ${statusColor(r.status)}">${esc(r.status)}${src}${r.error ? `<div class="text-slate-400 text-[10px]">${esc(r.error)}</div>` : ''}</td>
+                          </tr>`;
+                    });
+                    html += '</tbody></table></div>';
+                    if (data.results.length > 100) html += `<p class="text-xs text-secondary mt-2">Showing first 100 of ${data.results.length}. Download the file for the full set.</p>`;
+                }
+                html += '</div>';
+                panel.innerHTML = html;
+            }
+            if (typeof showToast === 'function') showToast('Batch processed successfully', 'success');
+        })
+        .catch(err => {
+            if (panel) panel.innerHTML = `<div class="text-red-600 p-4">Error: ${err.message || 'Please check the file has a smiles or iupac/name column and try again.'}</div>`;
+            if (typeof showToast === 'function') showToast('Batch error: ' + (err.message || 'See details in panel'), 'error');
+        })
+        .finally(() => {
+            if (indicator) indicator.classList.add('opacity-0', 'pointer-events-none');
+        });
+
+    return false; // handled manually
+}
+</script>
 {% endblock %}

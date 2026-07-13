@@ -284,21 +284,6 @@ function showSkeleton(element, count = 5) {
     }
 }
 
-/** Spectrum tab switcher (analysis results partial) */
-function showSpectrumTab(name) {
-    ['ir', 'hnmr', 'cnmr'].forEach((tab) => {
-        const panel = document.getElementById('panel-' + tab);
-        const btn = document.getElementById('tab-' + tab);
-        if (panel) panel.classList.toggle('hidden', tab !== name);
-        if (btn) {
-            btn.classList.toggle('border-sci-blue', tab === name);
-            btn.classList.toggle('text-sci-blue', tab === name);
-            btn.classList.toggle('border-transparent', tab !== name);
-            btn.classList.toggle('text-slate-500', tab !== name);
-        }
-    });
-}
-
 // HTMX Event Handlers
 if (document.body) {
     document.body.addEventListener('htmx:responseError', (evt) => {

@@ -1,4 +1,14 @@
 from dataclasses import dataclass
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+# Above this dimension (Å) an auto-generated box almost certainly spans a whole
+# chain/receptor rather than a focused binding site — Vina docking into a box
+# this large is effectively blind docking and rarely meaningful.
+_WHOLE_RECEPTOR_DIMENSION = 40.0
+
 
 @dataclass
 class GridBoxConfig:
@@ -9,6 +19,10 @@ class GridBoxConfig:
     size_y: float
     size_z: float
     spacing: float = 0.375
+    # Populated by auto_gridbox when the derived box looks like a whole-receptor
+    # (blind-docking) box rather than a focused binding site. None when the box
+    # looks reasonable.
+    warning: Optional[str] = None
 
 
 def _parse_pdbqt_coordinates(line: str):
@@ -56,5 +70,15 @@ def auto_gridbox(pdbqt_text: str, margin: float = 5.0) -> GridBoxConfig:
     size_x = (max_x - min_x) + margin * 2
     size_y = (max_y - min_y) + margin * 2
     size_z = (max_z - min_z) + margin * 2
-    
-    return GridBoxConfig(center_x, center_y, center_z, size_x, size_y, size_z)
+
+    warning = None
+    if max(size_x, size_y, size_z) > _WHOLE_RECEPTOR_DIMENSION:
+        warning = (
+            f"Auto grid box is very large ({size_x:.0f} x {size_y:.0f} x {size_z:.0f} Å). "
+            "This looks like a whole-receptor bounding box (blind docking), not a focused "
+            "binding site. If you passed a full receptor, prefer the co-crystal ligand site "
+            "(/receptor/ligand_sites) or a detected pocket (/receptor/pockets) instead."
+        )
+        logger.warning(warning)
+
+    return GridBoxConfig(center_x, center_y, center_z, size_x, size_y, size_z, warning=warning)

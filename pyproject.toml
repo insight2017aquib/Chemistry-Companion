@@ -1,0 +1,164 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chemistry-companion"
+version = "3.0.0"
+description = "Integrated toolkit for molecular analysis, heuristic spectral prediction, and docking preparation"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Aquib Belal" },
+]
+keywords = [
+    "cheminformatics",
+    "rdkit",
+    "openbabel",
+    "nmr-prediction",
+    "ir-prediction",
+    "docking",
+    "molecular-descriptors",
+    "fastapi",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    # Cheminformatics core
+    "rdkit>=2023.03.1",
+    "openbabel-wheel>=3.1.1.14",
+    "pandas>=2.0.0",
+    "numpy>=1.23.0",
+    "scipy>=1.9.0",
+    "pubchempy>=1.0.4",
+    "py2opsin>=1.2.0",
+    "gemmi>=0.7.0",
+    # Export / visualization
+    "openpyxl>=3.1.2",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.2",
+    "tabulate>=0.9.0",
+    # Docking prep (graceful degradation if optional tools missing)
+    "meeko>=0.5.0",
+    "py3Dmol>=2.1.0",
+    # Web stack
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "Jinja2>=3.1.2",
+    "python-multipart>=0.0.6",
+    "SQLAlchemy>=2.0.0",
+    "aiosqlite>=0.19.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+# Notebook / tutorial workflows
+jupyter = [
+    "jupyter>=1.0.0",
+    "nbformat>=5.9.0",
+]
+# Optional protonation enumeration for ligand prep (gracefully skipped if absent)
+protonation = [
+    "dimorphite-dl>=1.3.2",
+]
+# Test suite
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.24",
+    "jupyter>=1.0.0",
+    "nbformat>=5.9.0",
+]
+# Convenience meta-extra
+full = [
+    "chemistry-companion[jupyter,protonation,dev]",
+]
+
+[project.urls]
+Homepage = "https://github.com/aquibbelal/chemistry-companion"
+Repository = "https://github.com/aquibbelal/chemistry-companion"
+Documentation = "https://github.com/aquibbelal/chemistry-companion#readme"
+
+[project.scripts]
+# CLI toolkit (analyse, batch, spectra, export, …)
+chemistry-companion = "chemistry_companion:main"
+# Web application (Uvicorn + FastAPI)
+chemistry-companion-server = "api.__main__:main"
+
+[tool.setuptools]
+# Top-level module providing the CLI entry point
+py-modules = ["chemistry_companion"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "api*",
+    "core*",
+    "database*",
+    "docking_workflow*",
+    "exports*",
+    "llm*",
+    "reports*",
+    "services*",
+    "spectra*",
+    "static*",
+    "templates*",
+    "visualization*",
+    "data*",
+]
+exclude = [
+    "tests*",
+    "scripts*",
+    "archive*",
+    "AutoDock-Vina*",
+    "node_modules*",
+    "outputs*",
+    "backups*",
+    "graphify-out*",
+]
+
+[tool.setuptools.package-data]
+templates = ["**/*.html"]
+static = [
+    "**/*.css",
+    "**/*.js",
+    "**/*.png",
+    "**/*.svg",
+    "**/*.ico",
+    "**/*.woff",
+    "**/*.woff2",
+    "**/*.ttf",
+    "images/**/*",
+]
+data = [
+    "*.csv",
+    "*.txt",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

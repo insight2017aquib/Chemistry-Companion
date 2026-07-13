@@ -1,7 +1,7 @@
 """
 chemistry_companion.py
 ======================
-CLI entry point for Chemistry Companion — Phase 1 (v0.3.0).
+CLI entry point for Chemistry Companion v3.0.0.
 
 Subcommands
 -----------
@@ -37,7 +37,7 @@ from reports.export_utils import export_batch
 
 logger = logging.getLogger("chemistry_companion")
 
-VERSION = "0.3.0"
+VERSION = "3.0.0"
 
 DEMO_MOLECULES = [
     ("Benzene",    "smiles", "c1ccccc1"),

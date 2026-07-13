@@ -237,6 +237,7 @@ class BatchExportPayload:
             rows.append({
                 "record_id": record_id,
                 "name": molecule.get("name", ""),
+                "iupac": molecule.get("input_iupac", ""),
                 "smiles": molecule.get("smiles", ""),
                 "formula": molecule.get("formula", ""),
                 "molecular_weight": molecule.get("molecular_weight"),
@@ -269,6 +270,7 @@ class BatchExportPayload:
             rows.append({
                 "record_id": failure.get("record_id", ""),
                 "name": failure.get("name", ""),
+                "iupac": failure.get("input_iupac", ""),
                 "smiles": failure.get("smiles", ""),
                 "formula": "",
                 "molecular_weight": None,
@@ -294,6 +296,7 @@ def _failure_row(raw: Mapping[str, Any], record_id: str, position: int) -> dict[
         "row_index": _coalesce(raw.get("row_index"), input_block.get("row_index"), position),
         "input": _coalesce(raw.get("input_repr"), input_block.get("smiles"), input_block.get("iupac"), input_block.get("name")),
         "name": _coalesce(input_block.get("name"), raw.get("name")),
+        "input_iupac": _coalesce(input_block.get("iupac"), input_block.get("iupac_name")),
         "smiles": _coalesce(input_block.get("smiles"), raw.get("smiles")),
         "error": _coalesce(raw.get("error"), "Unknown processing failure"),
         "stage": _coalesce(raw.get("stage"), "analysis"),
@@ -323,10 +326,13 @@ def _success_sections(raw: Mapping[str, Any], record_id: str, position: int) -> 
     )
     exact_mass = _coalesce(molecule.get("exact_mass"), descriptors.get("exact_mass"), flat.get("exact_mass"))
 
+    input_iupac = _coalesce(input_block.get("iupac"), input_block.get("iupac_name"))
+
     molecule_row = {
         "record_id": record_id,
         "row_index": _coalesce(flat.get("row_index"), input_block.get("row_index"), position),
         "name": name,
+        "input_iupac": input_iupac,
         "smiles": smiles,
         "inchi": _coalesce(molecule.get("inchi"), flat.get("inchi")),
         "inchikey": _coalesce(molecule.get("inchikey"), flat.get("inchikey")),

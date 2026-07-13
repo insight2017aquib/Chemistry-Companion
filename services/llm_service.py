@@ -24,7 +24,9 @@ PROVIDER_ALIASES = {
 
 
 def _normalize_provider(provider: Optional[str] = None) -> str:
-    selected_provider = provider or os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER)
+    selected_provider = provider or os.getenv("LLM_PROVIDER")
+    if not selected_provider:
+        selected_provider = DEEPSEEK_PROVIDER if os.getenv(DEEPSEEK_API_KEY_ENV) else DEFAULT_PROVIDER
     return PROVIDER_ALIASES.get(selected_provider.strip().lower(), selected_provider.strip().lower())
 
 

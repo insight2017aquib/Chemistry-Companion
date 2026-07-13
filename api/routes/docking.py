@@ -6,12 +6,12 @@ Docking API endpoints.
 
 import logging
 import uuid
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Request
 
 from core.docking_preparation import prepare_docking_structure
+from core.paths import outputs_dir
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,13 +29,14 @@ async def generate_docking(
         pdbqt_content = prepare_docking_structure(
             smiles=input_text,
             output_format="pdbqt",
-            optimization_method=forcefield
+            optimization_method=forcefield,
+            ph=ph,
         )
         
         # Save to outputs/docking
         job_id = str(uuid.uuid4())
         filename = f"{job_id}.pdbqt"
-        output_dir = Path(__file__).parent.parent.parent / "outputs" / "docking"
+        output_dir = outputs_dir() / "docking"
         output_dir.mkdir(parents=True, exist_ok=True)
         
         output_path = output_dir / filename

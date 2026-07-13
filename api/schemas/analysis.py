@@ -20,7 +20,7 @@ class MoleculeInput(BaseModel):
     name: Optional[str] = Field(None, description="Molecule name")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "smiles": "c1ccccc1",
                 "name": "Benzene"
@@ -37,7 +37,7 @@ class AnalysisRequest(BaseModel):
     export_formats: List[str] = Field(default_factory=list, description="Export formats")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecule": {
                     "smiles": "CC(=O)O",
@@ -208,7 +208,7 @@ class AnalysisResponse(BaseModel):
     errors: List[str] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecule": {
                     "smiles": "c1ccccc1",

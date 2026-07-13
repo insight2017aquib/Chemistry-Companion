@@ -27,7 +27,7 @@ class BatchRequest(BaseModel):
     output_dir: Optional[str] = Field(None, description="Output directory path")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "molecules": [
                     {"smiles": "c1ccccc1", "name": "Benzene"},
@@ -69,7 +69,7 @@ class BatchResponse(BaseModel):
     errors: List[str] = Field(default_factory=list)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "total_molecules": 3,
                 "successful_analyses": 3,

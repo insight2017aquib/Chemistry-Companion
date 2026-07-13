@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <script src="https://cdn.jsdelivr.net/npm/molstar@5.4.2/build/viewer/molstar.js"></script>
+        </head>
+        <body>
+            <div id="test-molstar" style="width: 800px; height: 600px;"></div>
+            <script>
+            async function run() {
+                const viewer = await molstar.Viewer.create('test-molstar', {
+                    layoutIsExpanded: false,
+                    layoutShowControls: false,
+                });
+                console.log('Does structureInteractivity exist?', typeof viewer.structureInteractivity);
+            }
+            window.onload = run;
+            </script>
+        </body>
+        </html>

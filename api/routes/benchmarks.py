@@ -7,14 +7,15 @@ Benchmarks workflow execution API.
 import logging
 import os
 import time
-from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
 
+from core.paths import outputs_dir, package_root, sample_data_dir
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = package_root()
 
 _benchmark_cache = {
     "timestamp": 0,
@@ -26,7 +27,7 @@ _benchmark_cache = {
 async def run_benchmarks() -> dict[str, Any]:
     """Run the descriptor benchmark and return cached metrics if within 24h TTL."""
     try:
-        csv_path = ROOT / "data" / "benchmark_molecules.csv"
+        csv_path = sample_data_dir() / "benchmark_molecules.csv"
         if not csv_path.exists():
             return {"success": False, "error": "Benchmark CSV not found", "status": "failed"}
 
@@ -58,7 +59,7 @@ async def run_benchmarks() -> dict[str, Any]:
         comparisons = benchmark_from_csv(csv_path)
         summary = benchmark_summary(comparisons)
         
-        output_dir = ROOT / "outputs" / "descriptor_benchmarks"
+        output_dir = outputs_dir() / "descriptor_benchmarks"
         export_paths = export_benchmark_report(comparisons, output_dir=output_dir)
         
         # 2. Run Tool Comparison to regenerate the static SVGs displayed in the GUI

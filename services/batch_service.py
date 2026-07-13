@@ -22,12 +22,23 @@ class BatchService:
     """Service for handling batch molecule analysis operations."""
 
     def __init__(self, max_workers: int = 4):
-        self.pipeline = ChemistryPipeline(include_spectra=True)
+        # Pipelines are cached per include_spectra flag so the "Include Spectral
+        # Predictions" toggle actually skips the (slow) spectra predictors.
+        self._pipelines: Dict[bool, ChemistryPipeline] = {}
+        self.pipeline = self._get_pipeline(True)
         self.max_workers = max_workers
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.csv_exporter = CsvExporter()
         self.json_exporter = JsonExporter()
         self.excel_exporter = ExcelExporter()
+
+    def _get_pipeline(self, include_spectra: bool) -> ChemistryPipeline:
+        """Return a pipeline configured for the requested spectra setting."""
+        pipeline = self._pipelines.get(include_spectra)
+        if pipeline is None:
+            pipeline = ChemistryPipeline(include_spectra=include_spectra)
+            self._pipelines[include_spectra] = pipeline
+        return pipeline
 
     def process_batch(
         self,
@@ -140,8 +151,9 @@ class BatchService:
             if save_images and name:
                 image_path = str(output_path / f"{name}.png")
 
-            # Run analysis
-            result = self.pipeline.analyze(
+            # Run analysis (spectra-aware pipeline honours the include_spectra flag)
+            pipeline = self._get_pipeline(include_spectra)
+            result = pipeline.analyze(
                 smiles=smiles,
                 inchi=inchi,
                 iupac=iupac,

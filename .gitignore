@@ -1,48 +1,115 @@
-__pycache__/
-*.pyc
-.pytest_cache/
+# ============================================================================
+# Chemistry Companion — .gitignore (v3.0 release hygiene)
+# ============================================================================
 
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments
 venv/
 .venv/
-.env/
+env/
 
-.vscode/
-
-build/
-dist/
-
-*.sqlite
-*.db
-
-*.log
-
-.ipynb_checkpoints/
-
-exports/generated/
-
-validation/results/
-
-*.pdbqt
-
-*.egg-info/.env
-.env.local
+# --- Secrets & local runtime ---
 .env
 .env.*
 !.env.example
+.cc_setup_complete
+*.sqlite
+*.db
+*.log
 
-.venv/
-__pycache__/
-*.pyc
+# --- Build / packaging outputs ---
+build/
+dist/
+release_archives/
+*.exe
+!installer/assets/**
 
-Miniconda3-latest-Windows-x86_64.exe
-graphify-out/cache/
-outputs/docking_workspace/
+# --- Installer toolchain (local Inno Setup copy; not source) ---
+installer/tools/
+installer/**/__pycache__/
 
-# Generated outputs
+# --- Node / frontend tooling (if present) ---
+node_modules/
+package-lock.json
+
+# --- Generated / local data ---
 outputs/
+output/
+backups/
+exports/generated/
+validation/results/
 graphify-out/
+graph.json
+graph.html
 
-# Benchmarks
+# PAMS downloaded/derived assets
+data/pams/
+data/pams_cache/
+
+# Allow packaged sample / benchmark inputs (sdist + tests)
+!data/
+data/*
+!data/__init__.py
+!data/smiles_input.txt
+!data/benchmark_molecules.csv
+!data/spectra_benchmark.csv
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.claude/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+$null
+
+# --- Embedded third-party source trees ---
+AutoDock-Vina/
+Miniconda3-latest-Windows-x86_64.exe
+
+# --- Local QA / smoke artifacts ---
+*_probe.*
+*_trace.*
+*_debug.*
+fre_validation_raw.json
+installer_validation_raw.json
+installer_validation_raw.csv
+portable_smoke_results.csv
+portable_pid.txt
+portable_*.log
+pyinstaller_build.log
+conda_startup.log
+uvicorn*.log
+python-start-test*.log
+val_final.log
+
+# --- Scratch / one-off scripts (not product) ---
+debug_*.py
+scratch_*.py
+probe2.py
+phase1_verify.py
+live_camera_audit.py
+verify_fixes.py
+run_spectra_validation.py
+demo_render_heterocycle.py
+_check_venv.ps1
+
+# --- Local matrix dumps ---
 descriptor_benchmark*
 api_coverage.csv
 backend_inventory.csv
@@ -51,25 +118,12 @@ frontend_event_matrix.csv
 gui_feature_matrix.csv
 route_mount_report.csv
 batch_connectivity_matrix.csv
-
-# Personal/generated chemistry files
 final_compounds.csv
-
-# Debug/probe
-*_probe.*
-*_trace.*
-*_debug.*
-*_audit.*
-
-# Generated reports
 validation_report.md
-
-# Temporary
-$null
 replacements.txt
 
-# Installer/local binaries
-*.exe
+# PDBQT job artifacts
+*.pdbqt
 
-# Embedded repos
-AutoDock-Vina/
+# Jupyter
+.ipynb_checkpoints/

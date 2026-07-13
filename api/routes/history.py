@@ -11,17 +11,17 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
-from pathlib import Path
 from sqlalchemy.orm import Session
 
 from api.templating import create_templates
+from core.paths import templates_dir
 from database.models import get_db
 from services.history_service import HistoryService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 history_service = HistoryService()
-templates = create_templates(Path(__file__).parent.parent.parent / "templates")
+templates = create_templates(templates_dir())
 
 
 @router.get("/history")

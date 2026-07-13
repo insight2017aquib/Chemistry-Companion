@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Visualization — Chemistry Companion{% endblock %}
+{% block title %}Molecular Viewer — Chemistry Companion{% endblock %}
 
 {% block content %}
 <div class="space-y-6" x-data="visualizationWorkspace()">
     <header class="mb-4 flex justify-between items-end">
         <div>
-            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Visualization Workspace</h1>
-            <p class="text-slate-500 mt-2">Interactive 2D and 3D viewing of proteins, ligands, and complexes.</p>
+            <h1 class="text-3xl font-bold text-slate-900 dark:text-white">Molecular Viewer</h1>
+            <p class="text-slate-500 mt-2">Standalone 2D/3D ligand, protein, and complex visualization (reuses existing RDKit + 3Dmol.js infrastructure).</p>
         </div>
     </header>
 
@@ -39,14 +39,14 @@
                 <div x-show="!proteinData" class="absolute inset-0 flex items-center justify-center text-slate-400">
                     Upload a PDB file to visualize.
                 </div>
-                <div x-show="proteinData" class="absolute inset-0 p-4 overflow-auto">
-                    <div class="mb-4 text-xs font-mono bg-white dark:bg-slate-900 p-2 rounded shadow-sm border border-border">
+                <div x-show="proteinData" class="absolute inset-0 p-4 overflow-auto flex flex-col">
+                    <div class="mb-4 text-xs font-mono bg-white dark:bg-slate-900 p-2 rounded shadow-sm border border-border flex-none">
                         <div><strong>Source:</strong> <span x-text="proteinData?.pdb_id"></span></div>
                         <div><strong>Chains:</strong> <span x-text="proteinData?.num_chains"></span> | <strong>Residues:</strong> <span x-text="proteinData?.num_residues"></span></div>
                         <div x-show="proteinData?.has_ligands"><strong>Ligands:</strong> <span x-text="proteinData?.ligand_names?.join(', ')"></span></div>
                     </div>
                     <!-- Real 3D Protein Viewer Area -->
-                    <div id="protein-3d-viewer" class="w-full h-[300px] rounded border border-border bg-white" style="position: relative;"></div>
+                    <div id="protein-3d-viewer" class="w-full flex-1 min-h-[200px] rounded border border-border bg-white" style="position: relative;"></div>
                 </div>
             </div>
         </div>
@@ -70,8 +70,12 @@
             
             <div class="flex-1 grid grid-rows-2 gap-4">
                 <div class="bg-white dark:bg-slate-800 rounded border border-border relative flex items-center justify-center min-h-[190px]">
-                    <div x-show="!ligandSvg" class="text-slate-400">2D Structure</div>
+                    <div x-show="!ligandSvg" class="text-slate-400">2D Structure (RDKit SVG)</div>
                     <div x-show="ligandSvg" x-html="ligandSvg" class="w-full h-full p-2 flex justify-center items-center"></div>
+                    <div x-show="ligandSvg" class="absolute top-2 right-2 flex gap-1">
+                        <button @click="downloadLigandSVG()" class="text-[10px] px-2 py-0.5 bg-white border border-border rounded shadow-sm hover:bg-slate-50">SVG</button>
+                        <button @click="downloadLigandPNG()" class="text-[10px] px-2 py-0.5 bg-white border border-border rounded shadow-sm hover:bg-slate-50">PNG</button>
+                    </div>
                 </div>
                 <div class="bg-slate-50 dark:bg-slate-800 rounded border border-border relative flex items-center justify-center min-h-[190px] overflow-hidden">
                     <div x-show="!ligandHtml3d" class="text-slate-400">3D Structure</div>
@@ -201,7 +205,6 @@ document.addEventListener('alpine:init', () => {
             const element = document.getElementById(elementId);
             if (!element) return;
 
-            element.innerHTML = '';
             const validModels = models.filter(model => model.data && model.data.trim());
             if (!validModels.length) {
                 this.showViewerMessage(element, emptyMessage || 'No structure data available.');
@@ -211,19 +214,251 @@ document.addEventListener('alpine:init', () => {
             try {
                 await this.ensure3Dmol();
 
-                const viewer = window.$3Dmol.createViewer(element, {
-                    backgroundColor: 'white'
+                // bounded wait for dimensions (before any viewer create/reuse decision)
+                if (element) {
+                    element.style.height = '100%';
+                    element.style.width = '100%';
+                }
+                let waited = 0;
+                const maxMs = 2000;
+                const stepMs = 20;
+                const maxTries = Math.ceil(maxMs / stepMs);
+                while (waited < maxTries) {
+                    const w = element.offsetWidth || element.clientWidth || 0;
+                    const h = element.offsetHeight || element.clientHeight || 0;
+                    if (w > 0 && h > 0) {
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, stepMs));
+                    waited++;
+                }
+                const readyW = element.offsetWidth || element.clientWidth || 0;
+                const readyH = element.offsetHeight || element.clientHeight || 0;
+                if (readyW <= 0 || readyH <= 0) {
+                    this.showViewerMessage(element, `Cannot initialize 3D viewer: container has zero size (w=${readyW}, h=${readyH}). Resize window or reload.`, true);
+                    return;
+                }
+
+                // === LIFECYCLE REPAIR ===
+                // Check for existing viewer attached to *this* element.
+                // Reuse if possible (via clear + addModel on same canvas/gl).
+                // If must recreate: destroy first (dispose/clear + lose GL context + remove canvases).
+                // Guarantees at most one active viewer per DOM element.
+                let viewer = window[viewerName];
+
+                function viewerAttachedTo(v, el) {
+                    if (!v || !el) return false;
+                    try {
+                        if (typeof v.getCanvas === 'function') {
+                            const c = v.getCanvas();
+                            if (c) {
+                                return c === el || c.parentElement === el || el.contains(c);
+                            }
+                        }
+                    } catch (e) {}
+                    return !!el.querySelector('canvas');
+                }
+
+                if (viewer && viewerAttachedTo(viewer, element)) {
+                    try {
+                        if (typeof viewer.clear === 'function') {
+                            viewer.clear();
+                        } else if (typeof viewer.removeAllModels === 'function') {
+                            viewer.removeAllModels();
+                        }
+                    } catch (e) {
+                        console.warn('REUSE clear failed for', elementId, e);
+                    }
+                } else {
+                    if (viewer) {
+                        try {
+                            if (typeof viewer.dispose === 'function') {
+                                viewer.dispose();
+                            } else if (typeof viewer.clear === 'function') {
+                                viewer.clear();
+                            }
+                            // Force-release WebGL contexts + remove canvases to prevent leaks/accumulation
+                            const canvases = element.querySelectorAll('canvas');
+                            canvases.forEach((c) => {
+                                try {
+                                    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+                                    if (gl) {
+                                        const ext = gl.getExtension('WEBGL_lose_context');
+                                        if (ext) ext.loseContext();
+                                    }
+                                } catch (e) {}
+                                if (c.parentNode) c.parentNode.removeChild(c);
+                            });
+                            element.innerHTML = '';
+                        } catch (e) {
+                            console.warn('DESTROY error for', elementId, e);
+                            element.innerHTML = '';
+                        }
+                        window[viewerName] = null;
+                        try { delete window[viewerName]; } catch (e) {}
+                        viewer = null;
+                    } else if (element.querySelector('canvas')) {
+                        // orphan canvas from prior bad state, clean it
+                        element.innerHTML = '';
+                    }
+
+                    viewer = window.$3Dmol.createViewer(element, {
+                        backgroundColor: 'white'
+                    });
+                    window[viewerName] = viewer;
+                }
+
+                // Add models to the (reused or newly created) viewer. Never more than one active per element.
+                validModels.forEach((model, index) => {
+                    const returned = viewer.addModel(model.data, model.format || 'pdb');
+
+                    // Audit: model bounds after addModel (for this index)
+                    try {
+                        let atoms = [];
+                        const m = returned || (viewer.getModel ? viewer.getModel(index) : null);
+                        if (m) {
+                            if (typeof m.selectedAtoms === 'function') {
+                                atoms = m.selectedAtoms({});
+                            } else if (m.atoms && m.atoms.length) {
+                                atoms = m.atoms;
+                            } else if (viewer.selectedAtoms) {
+                                atoms = viewer.selectedAtoms({model: index});
+                            }
+                        }
+                        if (atoms.length > 0) {
+                            let minx = Infinity, miny=Infinity, minz=Infinity;
+                            let maxx = -Infinity, maxy=-Infinity, maxz=-Infinity;
+                            for (let a of atoms) {
+                                if (a.x < minx) minx = a.x;
+                                if (a.y < miny) miny = a.y;
+                                if (a.z < minz) minz = a.z;
+                                if (a.x > maxx) maxx = a.x;
+                                if (a.y > maxy) maxy = a.y;
+                                if (a.z > maxz) maxz = a.z;
+                            }
+                            const bounds = {min: {x:minx, y:miny, z:minz}, max: {x:maxx, y:maxy, z:maxz}};
+                            const center = {x: (minx+maxx)/2, y:(miny+maxy)/2, z:(minz+maxz)/2 };
+                            const dims = {x: maxx-minx, y:maxy-miny, z:maxz-minz };
+                            console.log('ATOM_COUNT_FOR_BOUNDS', elementId, index, atoms.length);
+                            console.log('MODEL_BOUNDS', elementId, index, JSON.stringify(bounds));
+                            console.log('MODEL_CENTER', elementId, index, JSON.stringify(center));
+                            console.log('MODEL_DIMENSIONS', elementId, index, JSON.stringify(dims));
+                        }
+                    } catch (e) {
+                        console.log('MODEL_BOUNDS_ERROR', elementId, index, e.message);
+                    }
+
+                    // model.style may be a single object or an array
+                    // (e.g. [{cartoon:...}, {surface:...}]).
+                    // setStyle() expects a single object; surfaces need addSurface().
+                    const styleSpec = model.style || {stick: {}};
+                    if (Array.isArray(styleSpec)) {
+                        const primary = styleSpec[0] || {stick: {}};
+                        viewer.setStyle({model: index}, primary);
+                        for (let si = 1; si < styleSpec.length; si++) {
+                            const s = styleSpec[si];
+                            if (s && s.surface) {
+                                viewer.addSurface($3Dmol.SurfaceType.VDW, s.surface, {model: index});
+                            } else if (s) {
+                                viewer.addStyle({model: index}, s);
+                            }
+                        }
+                    } else {
+                        viewer.setStyle({model: index}, styleSpec);
+                    }
                 });
 
-                validModels.forEach((model, index) => {
-                    viewer.addModel(model.data, model.format || 'pdb');
-                    viewer.setStyle({model: index}, model.style || {stick: {}});
-                });
+                // Camera before zoomTo
+                try {
+                    let camInfo = {};
+                    if (viewer.camera) {
+                        const pos = viewer.camera.position;
+                        if (pos) camInfo.position = {x: pos.x, y: pos.y, z: pos.z};
+                    }
+                    if (viewer.controls && viewer.controls.target) {
+                        const t = viewer.controls.target;
+                        camInfo.target = {x: t.x, y: t.y, z: t.z};
+                    }
+                    if (camInfo.position && camInfo.target) {
+                        const p = camInfo.position;
+                        const t = camInfo.target;
+                        camInfo.distance = Math.sqrt( (p.x-t.x)*(p.x-t.x) + (p.y-t.y)*(p.y-t.y) + (p.z-t.z)*(p.z-t.z) );
+                    }
+                    try { if (typeof viewer.getView === 'function') camInfo.getView = viewer.getView(); } catch(e){}
+                    try { camInfo.zoom = viewer.zoom; } catch(e){}
+                    try { if (viewer.camera && viewer.camera.zoom != null) camInfo.camZoom = viewer.camera.zoom; } catch(e){}
+                    console.log('CAMERA_BEFORE_ZOOM', elementId, JSON.stringify(camInfo));
+                } catch (e) {
+                    console.log('CAMERA_BEFORE_ERROR', elementId, e.message);
+                }
 
                 viewer.zoomTo();
+
+                // Camera after zoomTo
+                try {
+                    let camInfo = {};
+                    if (viewer.camera) {
+                        const pos = viewer.camera.position;
+                        if (pos) camInfo.position = {x: pos.x, y: pos.y, z: pos.z};
+                    }
+                    if (viewer.controls && viewer.controls.target) {
+                        const t = viewer.controls.target;
+                        camInfo.target = {x: t.x, y: t.y, z: t.z};
+                    }
+                    if (camInfo.position && camInfo.target) {
+                        const p = camInfo.position;
+                        const t = camInfo.target;
+                        camInfo.distance = Math.sqrt( (p.x-t.x)*(p.x-t.x) + (p.y-t.y)*(p.y-t.y) + (p.z-t.z)*(p.z-t.z) );
+                    }
+                    try { if (typeof viewer.getView === 'function') camInfo.getView = viewer.getView(); } catch(e){}
+                    try { camInfo.zoom = viewer.zoom; } catch(e){}
+                    try { if (viewer.camera && viewer.camera.zoom != null) camInfo.camZoom = viewer.camera.zoom; } catch(e){}
+                    console.log('CAMERA_AFTER_ZOOM', elementId, JSON.stringify(camInfo));
+                } catch (e) {
+                    console.log('CAMERA_AFTER_ERROR', elementId, e.message);
+                }
+
                 viewer.render();
                 if (viewer.resize) viewer.resize();
-                window[viewerName] = viewer;
+
+                // === CANVAS PIXEL VERIFICATION (audit only, after render, no rendering logic change) ===
+                const canvas = element.querySelector('canvas');
+                if (canvas) {
+                    try {
+                        // safe equivalent: use toDataURL (works for webgl canvases, captures rendered pixels) + 2d read
+                        const dataUrl = canvas.toDataURL('image/png');
+                        console.log('CANVAS_TODATAURL_LEN', elementId, dataUrl ? dataUrl.length : 0);
+                        const img = new Image();
+                        img.onload = () => {
+                            const c2 = document.createElement('canvas');
+                            c2.width = img.width || 1;
+                            c2.height = img.height || 1;
+                            const ctx2 = c2.getContext('2d', {willReadFrequently: true});
+                            ctx2.drawImage(img, 0, 0);
+                            const w2 = c2.width;
+                            const h2 = c2.height;
+                            const cx = Math.floor(w2 / 2);
+                            const cy = Math.floor(h2 / 2);
+                            const pdata = ctx2.getImageData(cx, cy, 1, 1).data;
+                            console.log('CANVAS_PIXEL_SAMPLE', elementId, 'center:', cx, cy, 'rgba:', Array.from(pdata), 'size:', w2, 'x', h2);
+                            const hasNonZero = Array.from(pdata).some(p => p !== 0);
+                            console.log('CANVAS_HAS_NONZERO_PIXELS', elementId, hasNonZero);
+                            // corners too
+                            const samples = [];
+                            const pts = [[0,0], [w2-1,0], [0,h2-1], [w2-1,h2-1]];
+                            for (const [px, py] of pts) {
+                                const pd = ctx2.getImageData(px, py, 1, 1).data;
+                                samples.push({x:px, y:py, rgba: Array.from(pd)});
+                            }
+                            console.log('CANVAS_PIXEL_SAMPLES', elementId, samples);
+                        };
+                        img.src = dataUrl;
+                    } catch (e) {
+                        console.log('PIXEL_READ_ERROR', elementId, e.message);
+                    }
+                } else {
+                    console.log('NO_CANVAS_AFTER_RENDER', elementId);
+                }
             } catch (e) {
                 this.showViewerMessage(element, e.message, true);
             }
@@ -248,9 +483,10 @@ document.addEventListener('alpine:init', () => {
                 
                 this.$nextTick(() => {
                     const format = this.proteinData.structure_format || (file.name.toLowerCase().endsWith('.pdbqt') ? 'pdbqt' : 'pdb');
+                    // Reuse 3Dmol styles for cartoon + surface (C: Protein Viewer)
                     const proteinStyle = format === 'pdbqt'
                         ? {stick: {radius: 0.12, colorscheme: 'spectrum'}}
-                        : {cartoon: {color: 'spectrum'}};
+                        : [{cartoon: {color: 'spectrum'}}, {surface: {opacity: 0.15, color: 'lightgray'}}];
 
                     this.render3DModels(
                         'protein-3d-viewer',
@@ -319,6 +555,16 @@ document.addEventListener('alpine:init', () => {
                         '__ligandViewer',
                         'Ligand 3D structure data is empty.'
                     );
+                    // Atom labels + native rotate/zoom (3Dmol default interactivity for B)
+                    setTimeout(() => {
+                        const v = window.__ligandViewer;
+                        if (v) {
+                            try {
+                                v.setStyle({}, {stick: {colorscheme: 'greenCarbon'}, label: {fontSize: 8}});
+                                v.render();
+                            } catch(e) {}
+                        }
+                    }, 50);
                 });
             } catch(e) {
                 this.ligandError = `Error rendering ligand: ${e.message}`;
@@ -328,7 +574,48 @@ document.addEventListener('alpine:init', () => {
                 this.loadingLigand = false;
             }
         },
-        
+
+        // 2D export helpers (reuse SVG data + canvas for PNG; reuses existing RDKit-generated content)
+        downloadLigandSVG() {
+            if (!this.ligandSvg) return;
+            const blob = new Blob([this.ligandSvg], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ligand_2d.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+        downloadLigandPNG() {
+            if (!this.ligandSvg) return;
+            const svgEl = document.createElement('div');
+            svgEl.innerHTML = this.ligandSvg;
+            const svg = svgEl.querySelector('svg');
+            if (!svg) return;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+            img.onload = () => {
+                canvas.width = img.width || 300;
+                canvas.height = img.height || 300;
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.drawImage(img, 0, 0);
+                const pngUrl = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = pngUrl;
+                a.download = 'ligand_2d.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+            img.src = url;
+        },
+
         async generateOverlay() {
             this.loadingOverlay = true;
             this.overlayError = '';
